@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    appDir: true,
-  },
   typescript: {
     // Temporarily ignore build errors during migration
     ignoreBuildErrors: false,
