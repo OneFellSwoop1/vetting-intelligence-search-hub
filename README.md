@@ -1,229 +1,273 @@
-# Vetting Intelligence Search Hub
+# 🔍 Vetting Intelligence Search Hub
 
-A production-ready web application to search and harmonise results from multiple government data sources for compliance, due diligence, and investigative research.
+> A comprehensive platform for searching and analyzing government contracts, lobbying activities, and political financial data across multiple NYC and federal sources.
 
-## Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Next.js](https://img.shields.io/badge/Next.js-14.x-black.svg)](https://nextjs.org/)
 
-### Data Sources (6 Implemented)
-- ✅ **NYC Checkbook** – spending, contracts & payroll via official API
-- ✅ **Doing Business with NYC (DBNYC)** – campaign-finance database via respectful scraping
-- ✅ **NYS Commission on Ethics & Lobbying** – lobbying & financial disclosure via scraping
-- ✅ **U.S. Senate LDA API** – federal lobbying registrations & reports via REST API
-- ✅ **U.S. House Lobbying Disclosures** – House lobbying data via JSON/XML feeds
-- ✅ **NYC Lobbyist Search** – city lobbying filings via scraping/reverse-engineering
+## 🎯 Overview
 
-### Technical Features
-- **FastAPI backend** with async/await for non-blocking parallel searches
-- **React + Tailwind CSS frontend** with tabbed views and modern UI
-- **Redis caching** with 24-hour TTL to avoid hammering public servers
-- **Respectful rate limiting** for scraped sources (1-2s delays, proper User-Agent)
-- **CSV download** functionality for results export
-- **Jurisdiction filtering** (NYC/NYS/Federal)
-- **Deep-linking** to original government records
-- **Comprehensive error handling** and logging
-- **Docker containerization** with Redis included
-- **Production-ready** with CORS, health checks, and monitoring endpoints
+The Vetting Intelligence Search Hub aggregates data from multiple government transparency sources to provide comprehensive insights into:
 
-## Quick Start
+- **NYC Checkbook**: Municipal spending and contracts
+- **DoITT Business Portal**: NYC business registrations  
+- **NYS Ethics**: State-level lobbying activities
+- **Senate LDA**: Federal lobbying disclosures
+- **House LDA**: Congressional lobbying reports
+- **NYC Lobbyist Search**: Municipal lobbying activities
+- **FEC Data**: Federal campaign finance information
+- **USASpending.gov**: Federal contract spending
+
+## ✨ Key Features
+
+### 🔎 Multi-Source Search
+- **Unified Search Interface**: Query across all data sources simultaneously
+- **Smart Filtering**: Filter by jurisdiction (NYC/NYS/Federal), year, and data type
+- **Real-time Results**: Live aggregation from multiple APIs
+
+### 📊 Advanced Analytics
+- **Correlation Analysis**: Identify relationships between entities across datasets
+- **Spending Patterns**: Track financial flows and contracting patterns
+- **Lobbying Insights**: Connect lobbying activities with policy outcomes
+- **Entity Relationships**: Map connections between organizations, contracts, and political activities
+
+### 💾 Performance & Reliability
+- **Intelligent Caching**: Redis-based caching with configurable TTL
+- **Rate Limiting**: Respectful API usage with built-in throttling
+- **Error Handling**: Robust error recovery and fallback mechanisms
+- **Async Processing**: High-performance concurrent data fetching
+
+### 🎨 Modern UI/UX
+- **Responsive Design**: Mobile-first responsive interface
+- **Interactive Visualizations**: Charts and graphs for data exploration
+- **Export Capabilities**: Download results in multiple formats
+- **Advanced Filters**: Granular search and filtering options
+
+## 🏗️ Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │    Backend      │    │   Data Sources  │
+│   (Next.js)     │◄──►│   (FastAPI)     │◄──►│   (Gov APIs)    │
+│                 │    │                 │    │                 │
+│ • React UI      │    │ • API Routes    │    │ • NYC Checkbook │
+│ • Tailwind CSS  │    │ • Data Adapters │    │ • Senate LDA    │
+│ • TypeScript    │    │ • Caching Layer │    │ • House LDA     │
+│ • Responsive    │    │ • Correlation   │    │ • NYS Ethics    │
+└─────────────────┘    │   Analysis      │    │ • FEC Data      │
+                       └─────────────────┘    │ • USASpending   │
+                                              └─────────────────┘
+```
+
+## 🚀 Quick Start
 
 ### Prerequisites
-- Docker & Docker Compose
-- Node.js 18+ (for local frontend development)
-- Python 3.12+ (for local backend development)
 
-### Environment Setup
-1. Copy the environment template:
-   ```bash
-   cp env.example .env
-   ```
+- **Python 3.11+**
+- **Node.js 18+**
+- **Redis** (optional, for caching)
+- **Git**
 
-2. **Required:** Set your Senate LDA API key in `.env`:
-   ```bash
-   LDA_API_KEY=your_senate_lda_api_key_here
-   ```
+### 1. Clone the Repository
 
-3. Optionally customize other settings in `.env` (Redis URL, rate limits, etc.)
-
-### Run with Docker (Recommended)
 ```bash
-git clone <repo-url>
+git clone https://github.com/YOUR_USERNAME/vetting-intelligence-search-hub.git
 cd vetting-intelligence-search-hub
-docker compose up --build
 ```
 
-The application will be available at:
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:8000
-- **API Documentation:** http://localhost:8000/docs
+### 2. Backend Setup
 
-### Local Development
-
-#### Backend
 ```bash
+# Navigate to backend directory
 cd backend
+
+# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Copy environment template
+cp ../env.example .env
+
+# Edit .env file with your API keys (see Configuration section)
+nano .env
 ```
 
-#### Frontend
+### 3. Frontend Setup
+
 ```bash
-cd frontend
+# Navigate to frontend directory
+cd ../frontend
+
+# Install dependencies
 npm install
+
+# Build the application
+npm run build
+```
+
+### 4. Start the Application
+
+```bash
+# Terminal 1: Start the backend
+cd backend
+source venv/bin/activate
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+# Terminal 2: Start the frontend
+cd frontend
 npm run dev
 ```
 
-## Usage
+Visit `http://localhost:3000` to access the application.
 
-### Basic Search
-1. Enter a **name, company, or keyword** in the search box
-2. Optionally filter by **year** and **jurisdiction** (NYC/NYS/Federal)
-3. Click **Search** to query all 6 data sources in parallel
-4. Results are displayed with **tabbed views** by data source
-5. **Download CSV** of results or view **original records**
+## ⚙️ Configuration
 
-### API Usage
+### Required API Keys
+
+Copy `env.example` to `.env` and configure:
+
+```env
+# Socrata API (for NYC data)
+SOCRATA_APP_TOKEN=your_socrata_token_here
+
+# FEC API (for federal election data)
+FEC_API_KEY=your_fec_api_key_here
+
+# Optional: Redis configuration
+REDIS_URL=redis://localhost:6379/0
+
+# Optional: Database URL
+DATABASE_URL=sqlite:///./vetting_hub.db
+```
+
+### Getting API Keys
+
+1. **Socrata App Token**: [Register at NYC Open Data](https://opendata.cityofnewyork.us/)
+2. **FEC API Key**: [Get from FEC.gov](https://api.open.fec.gov/developers/)
+
+## 🐳 Docker Deployment
+
 ```bash
-# Search all sources
-curl -X POST "http://localhost:8000/search" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Smith", "year": "2024", "jurisdiction": "NYC"}'
+# Start all services
+docker-compose up --build
 
-# Health check
-curl http://localhost:8000/health
-
-# Cache statistics
-curl http://localhost:8000/cache/stats
+# Or start in detached mode
+docker-compose up -d --build
 ```
 
-## Project Structure
+Services will be available at:
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8001`
+- API Documentation: `http://localhost:8001/docs`
 
+## 📖 API Documentation
+
+### Core Endpoints
+
+- **`POST /search`**: Multi-source search across all data sources
+- **`GET /health`**: Health check endpoint
+- **`POST /correlation`**: Advanced correlation analysis
+- **`GET /sources`**: List available data sources
+
+### Example API Usage
+
+```python
+import requests
+
+# Search across all sources
+response = requests.post("http://localhost:8001/search", json={
+    "query": "Microsoft",
+    "year": 2024,
+    "jurisdiction": "federal"
+})
+
+results = response.json()
+print(f"Found {results['total_results']} results across {len(results['sources'])} sources")
 ```
-vetting-intelligence-search-hub/
-├── backend/                 # FastAPI application
-│   ├── app/
-│   │   ├── adapters/       # Data source adapters
-│   │   │   ├── checkbook.py      # NYC Checkbook API
-│   │   │   ├── dbnyc.py          # Doing Business NYC scraper
-│   │   │   ├── nys_ethics.py     # NYS Ethics scraper
-│   │   │   ├── senate_lda.py     # Senate LDA API
-│   │   │   ├── house_lda.py      # House LDA JSON/XML
-│   │   │   └── nyc_lobbyist.py   # NYC Lobbyist scraper
-│   │   ├── routers/        # API endpoints
-│   │   ├── cache.py        # Redis caching service
-│   │   ├── schemas.py      # Pydantic models
-│   │   └── main.py         # FastAPI app
-│   ├── tests/              # Comprehensive test suite
-│   ├── requirements.txt    # Python dependencies
-│   └── Dockerfile
-├── frontend/               # Next.js React application
-│   ├── pages/
-│   │   └── index.js        # Main search interface
-│   ├── package.json
-│   └── Dockerfile
-├── docker-compose.yml      # Full stack with Redis
-├── env.example            # Environment variables template
-└── README.md
-```
 
-## Data Sources Details
+## 🧪 Testing
 
-### Official APIs
-- **NYC Checkbook:** Uses official XML/JSON feeds from checkbooknyc.com
-- **Senate LDA:** REST API v1 with authentication (requires API key)
-
-### Respectful Scraping
-- **Rate limited:** 1-2 second delays between requests
-- **Proper headers:** Rotating User-Agent strings
-- **Error handling:** Graceful degradation if sources are unavailable
-- **Caching:** 24-hour Redis cache to minimize server load
-
-## Testing
-
-### Run Test Suite
 ```bash
+# Backend tests
 cd backend
-pytest tests/ -v
+python -m pytest tests/ -v
+
+# Frontend tests
+cd frontend
+npm test
+
+# Run with coverage
+python -m pytest --cov=app tests/
 ```
 
-### Test Coverage
-- Unit tests for individual adapters
-- Integration tests for parallel search
-- Cache functionality tests  
-- API endpoint validation
-- Error handling and edge cases
+## 📊 Data Sources
 
-### Manual Testing
-```bash
-# Test individual data sources
-curl -X POST http://localhost:8000/search -d '{"query":"Microsoft","jurisdiction":"Federal"}'
+| Source | Type | Coverage | Update Frequency |
+|--------|------|----------|------------------|
+| NYC Checkbook | Contracts/Spending | NYC | Daily |
+| DoITT Business Portal | Business Registration | NYC | Real-time |
+| NYS Ethics | Lobbying | New York State | Monthly |
+| Senate LDA | Lobbying | Federal | Quarterly |
+| House LDA | Lobbying | Federal | Quarterly |
+| FEC | Campaign Finance | Federal | Daily |
+| USASpending.gov | Federal Spending | Federal | Daily |
 
-# Test caching
-curl http://localhost:8000/cache/stats
+## 🤝 Contributing
 
-# Clear cache
-curl -X POST http://localhost:8000/cache/clear
-```
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Performance & Monitoring
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
-### Caching Strategy
-- **Redis-based** with 24-hour TTL
-- **Automatic cache key generation** based on query parameters
-- **Graceful fallback** when Redis unavailable
-- **Cache statistics** endpoint for monitoring
+## 📄 License
 
-### Rate Limiting
-- **Configurable delays** per data source
-- **Respectful scraping** practices
-- **Concurrent request limits**
-- **Timeout handling** (30s default)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-### Health Checks
-- **Basic health:** `GET /`
-- **Detailed health:** `GET /health` (includes cache status)
-- **Cache monitoring:** `GET /cache/stats`
+## 🛠️ Tech Stack
 
-## Environment Variables
+### Backend
+- **FastAPI**: Modern, fast web framework
+- **Python 3.11+**: Latest Python features
+- **Pydantic**: Data validation and serialization
+- **HTTPX**: Async HTTP client
+- **Redis**: Caching and session storage
+- **SQLAlchemy**: Database ORM (optional)
 
-See `env.example` for complete configuration options:
+### Frontend
+- **Next.js 14**: React framework with App Router
+- **TypeScript**: Type-safe JavaScript
+- **Tailwind CSS**: Utility-first CSS framework
+- **React Hook Form**: Form management
+- **Chart.js**: Data visualization
+- **Axios**: HTTP client
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `LDA_API_KEY` | **Yes** | U.S. Senate LDA API key |
-| `REDIS_URL` | No | Redis connection URL (default: redis://localhost:6379/0) |
-| `LOG_LEVEL` | No | Logging level (default: INFO) |
-| `CORS_ORIGINS` | No | Allowed CORS origins |
-| Rate limiting settings | No | Delays between requests per source |
+### Infrastructure
+- **Docker**: Containerization
+- **Redis**: Caching layer
+- **GitHub Actions**: CI/CD (optional)
 
-## Security & Best Practices
+## 📞 Support
 
-- **No secrets in code** – all keys in environment variables
-- **CORS configuration** for production deployments  
-- **Request validation** with Pydantic schemas
-- **Error handling** without exposing internal details
-- **Structured logging** for monitoring and debugging
-- **Graceful degradation** when data sources unavailable
+- 📧 **Email**: [Your email]
+- 🐛 **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/vetting-intelligence-search-hub/issues)
+- 📖 **Wiki**: [Project Wiki](https://github.com/YOUR_USERNAME/vetting-intelligence-search-hub/wiki)
 
-## Future Enhancements (Stretch Goals)
+## 🗺️ Roadmap
 
-- [ ] **PostgreSQL integration** with full-text search indexing
-- [ ] **Bulk CSV upload** for batch entity checks
-- [ ] **Admin panel** for monitoring API quotas and error logs
-- [ ] **API rate limiting** with Redis-based quotas
-- [ ] **User authentication** and search history
-- [ ] **Advanced filtering** by amount ranges, date ranges
-- [ ] **Export formats** beyond CSV (JSON, PDF reports)
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, code style, and pull request process.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
+- [ ] Advanced data visualization dashboard
+- [ ] Export functionality (PDF, Excel, CSV)
+- [ ] User authentication and saved searches
+- [ ] Email alerts for new data
+- [ ] Machine learning-powered recommendations
+- [ ] Mobile app (React Native)
 
 ---
 
-**Built with:** FastAPI, React, Redis, Docker | **Deployment:** `docker compose up` → http://localhost:8000 
+**Made with ❤️ for government transparency and accountability** 

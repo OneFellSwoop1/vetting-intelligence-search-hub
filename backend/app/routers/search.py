@@ -165,12 +165,24 @@ async def search(request: SearchRequest):
             logger.error(f"Unexpected error processing {source} results: {e}")
             total_hits[source] = 0
     
-    # Sort results by source and then by entity name for consistent ordering
+    # Sort results by source priority and then by entity name for consistent ordering
     def sort_key(x):
         # Handle both dict and SearchResult objects
         source = x.get('source') if isinstance(x, dict) else getattr(x, 'source', '')
         entity = x.get('vendor') or x.get('entity_name', '') if isinstance(x, dict) else getattr(x, 'entity_name', '')
-        return (source, entity)
+        
+        # Define source priority (lower number = higher priority)
+        source_priority = {
+            'senate_lda': 1,
+            'house_lda': 2, 
+            'dbnyc': 3,
+            'nyc_lobbyist': 4,
+            'checkbook': 5,
+            'NY State Procurement': 6
+        }
+        
+        priority = source_priority.get(source, 99)
+        return (priority, entity)
     
     results.sort(key=sort_key)
     

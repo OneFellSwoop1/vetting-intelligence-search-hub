@@ -1,24 +1,22 @@
+import os
 import asyncio
 import httpx
-import os
 from typing import List, Optional, Dict, Any
-from app.schemas import SearchResult
 import logging
+from ..schemas import SearchResult
 
 logger = logging.getLogger(__name__)
 
-# Real Senate LDA API v1 endpoints
+# The correct base URL for Senate LDA API
 LDA_API_BASE = "https://lda.senate.gov/api/v1"
 
 async def search_senate_lda(query: str, year: Optional[str] = None) -> List[SearchResult]:
     """
     Search the U.S. Senate LDA API v1 for federal lobbying registrations and reports.
-    Uses the official REST API endpoint with API authentication.
+    Uses the correct /filings/ endpoint with comprehensive data.
     """
     results = []
-    
-    # Get API key from environment
-    api_key = os.getenv('SENATE_LDA_API_KEY')
+    logger.info(f"🔍 Starting Senate LDA search for query: '{query}', year: {year}")
     
     try:
         # Add small delay for respectful API usage
@@ -29,313 +27,442 @@ async def search_senate_lda(query: str, year: Optional[str] = None) -> List[Sear
             'Accept': 'application/json'
         }
         
-        # Add API key to headers if available
-        if api_key:
-            headers['Authorization'] = f'Bearer {api_key}'
-            # Also try X-API-Key header format
-            headers['X-API-Key'] = api_key
-        
-        # Search registrations
-        async with httpx.AsyncClient(timeout=10) as client:
-            # Try registrations endpoint
-            registrations_url = "https://lda.senate.gov/api/v1/registrations"
-            registrations_params = {
-                'limit': 50,
-                'registrant_name': query
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Search filings with both client and registrant name matching
+            params = {
+                'page_size': 100,
+                'client_name': query,  # Use client_name for direct client matching
+                'filing_year': 2024,  # Get 2024 data first
+                'order_by': '-dt_posted'  # Sort by most recent first
             }
             
-            if api_key:
-                registrations_params['api_key'] = api_key
+            if year:
+                params['filing_year'] = year
+            else:
+                # Default to recent years for better relevance
+                params['filing_year'] = 2024
             
-            response = await client.get(registrations_url, headers=headers, params=registrations_params)
+            api_url = f"{LDA_API_BASE}/filings/"
+            logger.info(f"📡 Making API call to: {api_url}")
+            logger.info(f"📋 Search params: {params}")
+            
+            response = await client.get(api_url, headers=headers, params=params)
+            
+            logger.info(f"📊 API Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
-                if 'results' in data and data['results']:
-                    for item in data['results']:
-                        # Extract detailed information for modal display
-                        description_parts = []
-                        
-                        # Build comprehensive description
-                        if item.get('client_name'):
-                            description_parts.append(f"Client: {item['client_name']}")
-                        if item.get('client_general_description'):
-                            description_parts.append(f"Business: {item['client_general_description']}")
-                        if item.get('registrant_general_description'):
-                            description_parts.append(f"Registrant: {item['registrant_general_description']}")
-                        if item.get('lobbying_issues'):
-                            issues = item['lobbying_issues']
-                            if isinstance(issues, list):
-                                description_parts.append(f"Issues: {', '.join(issues[:3])}{'...' if len(issues) > 3 else ''}")
-                            else:
-                                description_parts.append(f"Issues: {issues}")
-                        
-                        # Create enriched result
-                        result = SearchResult(
-                            source="senate_lda",
-                            jurisdiction="Federal",
-                            entity_name=item.get('registrant_name', query),
-                            role_or_title=f"Lobbying Registration - {item.get('client_name', 'Unknown Client')}",
-                            description='; '.join(description_parts) if description_parts else f"Federal lobbying registration for {query}",
-                            amount_or_value=item.get('income_amount') or item.get('expense_amount') or "Amount not disclosed",
-                            filing_date=item.get('dt_posted', item.get('effective_date', '')),
-                            url_to_original_record=f"https://lda.senate.gov/filings/public/filing/registration/{item.get('registration_id', '')}" if item.get('registration_id') else "https://lda.senate.gov",
-                            # Additional metadata for modal
-                            metadata={
-                                'filing_type': 'Lobbying Registration',
-                                'client_name': item.get('client_name'),
-                                'client_description': item.get('client_general_description'),
-                                'registrant_description': item.get('registrant_general_description'),
-                                'lobbying_issues': item.get('lobbying_issues'),
-                                'registration_id': item.get('registration_id'),
-                                'contact_name': item.get('contact_name'),
-                                'principal_place_of_business': item.get('principal_place_of_business'),
-                                'income_amount': item.get('income_amount'),
-                                'expense_amount': item.get('expense_amount')
-                            }
-                        )
-                        results.append(result)
-            
-            # Also search quarterly reports
-            reports_url = "https://lda.senate.gov/api/v1/reports"
-            reports_params = {
-                'limit': 50,
-                'registrant_name': query
-            }
-            
-            if api_key:
-                reports_params['api_key'] = api_key
+                logger.info(f"📈 API returned {data.get('count', 'unknown')} total records")
                 
-            response = await client.get(reports_url, headers=headers, params=reports_params)
-            
-            if response.status_code == 200:
-                data = response.json()
                 if 'results' in data and data['results']:
-                    for item in data['results']:
-                        # Extract detailed information for reports
-                        description_parts = []
+                    logger.info(f"📝 Processing {len(data['results'])} results from API")
+                    
+                    for i, filing in enumerate(data['results']):
+                        # Since we're using client_name parameter, all results should be matches
+                        client_name = filing.get('client', {}).get('name', '')
+                        registrant_name = filing.get('registrant', {}).get('name', '')
                         
-                        if item.get('client_name'):
-                            description_parts.append(f"Client: {item['client_name']}")
-                        if item.get('lobbying_activities'):
-                            activities = item['lobbying_activities']
-                            if isinstance(activities, list) and activities:
-                                description_parts.append(f"Activities: {activities[0][:100]}{'...' if len(activities[0]) > 100 else ''}")
-                            elif isinstance(activities, str):
-                                description_parts.append(f"Activities: {activities[:100]}{'...' if len(activities) > 100 else ''}")
-                        if item.get('houses_and_agencies'):
-                            description_parts.append(f"Lobbied: {', '.join(item['houses_and_agencies'][:3]) if isinstance(item['houses_and_agencies'], list) else item['houses_and_agencies']}")
+                        logger.info(f"🔎 Filing {i+1}: Client='{client_name}', Registrant='{registrant_name}'")
+                        
+                        # All results from client_name search are matches, so process them all
+                        logger.info(f"✅ Processing filing {i+1}: Client='{client_name}', Registrant='{registrant_name}'")
+                        
+                        # Extract comprehensive filing information
+                        filing_type = filing.get('filing_type_display', 'Unknown Report')
+                        income = filing.get('income')
+                        expenses = filing.get('expenses')
+                        filing_year = filing.get('filing_year')
+                        filing_period = filing.get('filing_period_display', '')
+                        filing_uuid = filing.get('filing_uuid', '')
+                        posted_date = filing.get('dt_posted', '')
+                        
+                        logger.debug(f"💰 Financial data - Income: {income}, Expenses: {expenses}")
+                        logger.debug(f"📅 Filing info - Type: {filing_type}, Year: {filing_year}, UUID: {filing_uuid}")
+                        
+                        # Extract financial information - handle potential string values
+                        income = filing.get('income', 0) or 0
+                        expenses = filing.get('expenses', 0) or 0
+                        
+                        # Safely convert to int if they are strings
+                        try:
+                            income = int(income) if income and str(income).replace('.', '').replace(',', '').isdigit() else 0
+                        except (ValueError, TypeError):
+                            income = 0
+                            
+                        try:
+                            expenses = int(expenses) if expenses and str(expenses).replace('.', '').replace(',', '').isdigit() else 0
+                        except (ValueError, TypeError):
+                            expenses = 0
+                        
+                        # Build amount string
+                        amount_str = None
+                        if income and income > 0:
+                            amount_str = f"${income:,}"
+                        elif expenses and expenses > 0:
+                            amount_str = f"${expenses:,}"
+                        
+                        # Build description with lobbying activities
+                        description_parts = []
+                        if client_name and client_name != registrant_name:
+                            description_parts.append(f"Client: {client_name}")
+                        
+                        # Extract lobbying activities/issues
+                        lobbying_activities = filing.get('lobbying_activities', [])
+                        if lobbying_activities:
+                            logger.debug(f"🏛️ Found {len(lobbying_activities)} lobbying activities")
+                            issues = []
+                            for activity in lobbying_activities[:3]:  # Limit to first 3
+                                issue = activity.get('general_issue_code_display', '')
+                                if issue and issue not in issues:
+                                    issues.append(issue)
+                            if issues:
+                                description_parts.append(f"Issues: {', '.join(issues)}")
+                                logger.debug(f"📋 Lobbying issues: {issues}")
+                        
+                        # Determine primary entity name (prioritize match)
+                        if client_name:
+                            entity_name = client_name
+                            role = f"Lobbying Client - {filing_type}"
+                        else:
+                            entity_name = registrant_name
+                            role = f"Lobbyist/Registrant - {filing_type}"
                         
                         result = SearchResult(
                             source="senate_lda",
-                            jurisdiction="Federal", 
-                            entity_name=item.get('registrant_name', query),
-                            role_or_title=f"Quarterly Lobbying Report - {item.get('client_name', 'Unknown Client')}",
-                            description='; '.join(description_parts) if description_parts else f"Federal lobbying report for {query}",
-                            amount_or_value=item.get('income_amount') or item.get('expense_amount') or "Amount not disclosed",
-                            filing_date=item.get('dt_posted', item.get('reporting_period_end', '')),
-                            url_to_original_record=f"https://lda.senate.gov/filings/public/filing/report/{item.get('filing_uuid', '')}" if item.get('filing_uuid') else "https://lda.senate.gov",
-                            # Additional metadata for modal
+                            jurisdiction="Federal",
+                            entity_name=entity_name or query,
+                            role_or_title=role,
+                            description='; '.join(description_parts) if description_parts else f"Federal lobbying {filing_type.lower()} for {filing_year}",
+                            amount_or_value=amount_str,
+                            filing_date=posted_date[:10] if posted_date else None,
+                            url_to_original_record=f"https://lda.senate.gov/filings/public/filing/{filing_uuid}/" if filing_uuid else "https://lda.senate.gov",
                             metadata={
-                                'filing_type': 'Quarterly Report',
-                                'client_name': item.get('client_name'),
-                                'lobbying_activities': item.get('lobbying_activities'),
-                                'houses_and_agencies': item.get('houses_and_agencies'),
-                                'filing_uuid': item.get('filing_uuid'),
-                                'reporting_period_start': item.get('reporting_period_start'),
-                                'reporting_period_end': item.get('reporting_period_end'),
-                                'income_amount': item.get('income_amount'),
-                                'expense_amount': item.get('expense_amount'),
-                                'posted_by_name': item.get('posted_by_name')
+                                'filing_type': filing_type,
+                                'filing_period': filing_period,
+                                'filing_year': filing_year,
+                                'client_name': client_name,
+                                'registrant_name': registrant_name,
+                                'income': income,
+                                'expenses': expenses,
+                                'lobbying_activities': lobbying_activities,
+                                'filing_uuid': filing_uuid,
+                                'posted_date': posted_date,
+                                'registrant_address': filing.get('registrant', {}).get('address_1'),
+                                'registrant_city': filing.get('registrant', {}).get('city'),
+                                'registrant_state': filing.get('registrant', {}).get('state_display'),
                             }
                         )
                         results.append(result)
-    
-    except Exception as e:
-        logger.error(f"Error searching Senate LDA: {str(e)}")
-    
-    logger.info(f"Senate LDA search for '{query}' returned {len(results)} results")
-    return results
-
-async def _search_registrations(client: httpx.AsyncClient, query: str, year: Optional[str] = None, api_key: Optional[str] = None) -> List[SearchResult]:
-    """Search LDA registrations"""
-    results = []
-    
-    try:
-        params = {
-            'limit': 50
-        }
-        
-        # Add query parameters for search
-        if query:
-            params['registrant_name'] = query
-        
-        if year:
-            params['filing_year'] = year
-        
-        response = await client.get(f"{LDA_API_BASE}/registrations", params=params)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Handle different response formats
-            records = data.get('results', data.get('data', data))
-            if isinstance(records, dict):
-                records = [records]
-            
-            for record in records[:20]:  # Limit results
-                try:
-                    registrant_name = record.get('registrant_name', '')
-                    client_name = record.get('client_name', '')
-                    filing_date = record.get('filing_date', record.get('dt_posted', ''))
-                    filing_id = record.get('filing_uuid', record.get('id', ''))
-                    
-                    # Create result for registrant
-                    if registrant_name and query.lower() in registrant_name.lower():
-                        result = SearchResult(
-                            source="senate_lda",
-                            jurisdiction="Federal",
-                            entity_name=registrant_name,
-                            role_or_title="Lobbying Registrant",
-                            description=f"Federal Lobbying Registration for client: {client_name}" if client_name else "Federal Lobbying Registration",
-                            amount_or_value=None,
-                            filing_date=filing_date[:10] if filing_date else None,
-                            url_to_original_record=f"https://lda.senate.gov/filings/public/filing/{filing_id}" if filing_id else None
-                        )
-                        results.append(result)
-                    
-                    # Create result for client if different from registrant
-                    if client_name and query.lower() in client_name.lower() and client_name != registrant_name:
-                        result = SearchResult(
-                            source="senate_lda",
-                            jurisdiction="Federal",
-                            entity_name=client_name,
-                            role_or_title="Lobbying Client",
-                            description=f"Federal Lobbying Client (Registrant: {registrant_name})" if registrant_name else "Federal Lobbying Client",
-                            amount_or_value=None,
-                            filing_date=filing_date[:10] if filing_date else None,
-                            url_to_original_record=f"https://lda.senate.gov/filings/public/filing/{filing_id}" if filing_id else None
-                        )
-                        results.append(result)
+                        logger.info(f"✅ Added result: {entity_name} - {role}")
                         
-                except Exception as e:
-                    logger.warning(f"Error parsing registration record: {e}")
-                    continue
+                        # Limit results to prevent overwhelming response
+                        if len(results) >= 50:
+                            logger.info(f"🛑 Reached limit of 50 results, stopping")
+                            break
                     
-    except Exception as e:
-        logger.error(f"Error searching registrations: {e}")
+                    logger.info(f"📊 Finished processing. Found {len(results)} matching results out of {len(data['results'])} API results")
+                else:
+                    logger.warning(f"⚠️ No results returned from API response")
+            else:
+                logger.error(f"❌ API call failed with status {response.status_code}")
+                logger.error(f"❌ Response text: {response.text[:200]}...")
     
+    except Exception as e:
+        logger.error(f"💥 Error searching Senate LDA: {str(e)}")
+        import traceback
+        logger.error(f"💥 Full traceback: {traceback.format_exc()}")
+    
+    logger.info(f"🏁 Senate LDA search for '{query}' completed. Returning {len(results)} results")
     return results
-
-async def _search_reports(client: httpx.AsyncClient, query: str, year: Optional[str] = None, api_key: Optional[str] = None) -> List[SearchResult]:
-    """Search LDA quarterly reports"""
-    results = []
-    
-    try:
-        params = {
-            'limit': 50
-        }
-        
-        # Add query parameters for search
-        if query:
-            params['registrant_name'] = query
-        
-        if year:
-            params['filing_year'] = year
-        
-        response = await client.get(f"{LDA_API_BASE}/reports", params=params)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Handle different response formats
-            records = data.get('results', data.get('data', data))
-            if isinstance(records, dict):
-                records = [records]
-            
-            for record in records[:20]:  # Limit results
-                try:
-                    registrant_name = record.get('registrant_name', '')
-                    client_name = record.get('client_name', '')
-                    amount = record.get('amount', record.get('income', ''))
-                    filing_date = record.get('filing_date', record.get('dt_posted', ''))
-                    filing_period = record.get('filing_period', '')
-                    filing_id = record.get('filing_uuid', record.get('id', ''))
-                    issues = record.get('lobbying_issues', [])
-                    
-                    # Create description from issues
-                    description_parts = []
-                    if filing_period:
-                        description_parts.append(f"{filing_period} Report")
-                    if isinstance(issues, list) and issues:
-                        issue_codes = [issue.get('general_issue_code', '') for issue in issues[:3] if isinstance(issue, dict)]
-                        if issue_codes:
-                            description_parts.append(f"Issues: {', '.join(filter(None, issue_codes))}")
-                    
-                    description = " - ".join(description_parts) if description_parts else "Federal Lobbying Report"
-                    
-                    # Create result for registrant
-                    if registrant_name and query.lower() in registrant_name.lower():
-                        result = SearchResult(
-                            source="senate_lda",
-                            jurisdiction="Federal",
-                            entity_name=registrant_name,
-                            role_or_title="Lobbying Report",
-                            description=f"{description} (Client: {client_name})" if client_name else description,
-                            amount_or_value=f"${float(amount):,.2f}" if amount and str(amount).replace('.','').replace('-','').isdigit() else amount,
-                            filing_date=filing_date[:10] if filing_date else None,
-                            url_to_original_record=f"https://lda.senate.gov/filings/public/filing/{filing_id}" if filing_id else None
-                        )
-                        results.append(result)
-                    
-                    # Create result for client if different from registrant
-                    if client_name and query.lower() in client_name.lower() and client_name != registrant_name:
-                        result = SearchResult(
-                            source="senate_lda",
-                            jurisdiction="Federal",
-                            entity_name=client_name,
-                            role_or_title="Lobbying Client Report",
-                            description=f"{description} (Registrant: {registrant_name})" if registrant_name else description,
-                            amount_or_value=f"${float(amount):,.2f}" if amount and str(amount).replace('.','').replace('-','').isdigit() else amount,
-                            filing_date=filing_date[:10] if filing_date else None,
-                            url_to_original_record=f"https://lda.senate.gov/filings/public/filing/{filing_id}" if filing_id else None
-                        )
-                        results.append(result)
-                        
-                except Exception as e:
-                    logger.warning(f"Error parsing report record: {e}")
-                    continue
-                    
-    except Exception as e:
-        logger.error(f"Error searching reports: {e}")
-    
-    return results 
 
 class SenateLDAAdapter:
     def __init__(self):
         self.name = "Senate LDA"
         
     async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
-        """Search Senate LDA data using the existing search_senate_lda function but return dict format"""
-        # Convert year back to string for the existing function
-        year_str = str(year) if year else None
+        """Search Senate LDA data with enhanced historical data support"""
+        logger.info(f"🔍 Starting enhanced Senate LDA search for query: '{query}', year: {year}")
         
-        # Call the existing function
-        search_results = await search_senate_lda(query, year_str)
+        try:
+            results = []
+            base_url = "https://lda.senate.gov/api/v1/filings/"
+            
+            # Enhanced year handling for comprehensive historical analysis
+            years_to_search = []
+            if year:
+                years_to_search = [year]
+            else:
+                # For comprehensive analysis, search recent years first, then expand if needed
+                current_year = 2024
+                years_to_search = [current_year, current_year - 1]  # Start with recent years
+            
+            # Enhanced query variations for better matching
+            query_variations = self._generate_query_variations(query)
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                for search_year in years_to_search:
+                    logger.info(f"📅 Searching Senate LDA for year: {search_year}")
+                    
+                    # Try different query variations
+                    for query_variant in query_variations:
+                        params = {
+                            'page_size': 50,  # Increased for better coverage
+                            'client_name': query_variant,
+                            'filing_year': search_year,
+                            'ordering': '-dt_posted'  # Get most recent first
+                        }
+                        
+                        logger.info(f"📡 Making API call with query: '{query_variant}' for year {search_year}")
+                        
+                        try:
+                            response = await client.get(base_url, params=params)
+                            logger.info(f"📊 API Response Status: {response.status_code}")
+                            
+                            if response.status_code == 200:
+                                data = response.json()
+                                total_records = data.get('count', 0)
+                                api_results = data.get('results', [])
+                                
+                                logger.info(f"📈 API returned {total_records} total records for {search_year} with query '{query_variant}'")
+                                
+                                # Process results for this year/query combo
+                                for filing in api_results:
+                                    if len(results) >= 100:  # Total limit across all searches
+                                        break
+                                        
+                                    processed_result = await self._process_filing_enhanced(filing, query)
+                                    if processed_result:
+                                        results.append(processed_result)
+                                        logger.debug(f"✅ Added Senate LDA result: {processed_result.get('title', 'Unknown')}")
+                                
+                                # If we found significant results for this variant/year, log success
+                                if total_records > 0:
+                                    logger.info(f"✅ Found {total_records} results for '{query_variant}' in {search_year}")
+                                    break  # Move to next year after successful variant
+                                    
+                        except Exception as api_error:
+                            logger.warning(f"⚠️ API error for year {search_year}, query '{query_variant}': {api_error}")
+                            continue
+                    
+                    # If we found enough results, stop searching more years
+                    if len(results) >= 50:
+                        break
+            
+            logger.info(f"🏁 Enhanced Senate LDA search for '{query}' completed. Returning {len(results)} results")
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Senate LDA search error: {e}")
+            return []
+    
+    async def search_historical_comprehensive(self, query: str, start_year: int = 2008, end_year: int = 2024) -> List[Dict[str, Any]]:
+        """Comprehensive historical search across multiple years - used for correlation analysis"""
+        logger.info(f"🏛️ Starting comprehensive historical Senate LDA search for '{query}' from {start_year} to {end_year}")
         
-        # Convert SearchResult objects to dict format
-        results = []
-        for result in search_results:
-            results.append({
-                'title': result.role_or_title,
-                'description': result.description,
-                'amount': result.amount_or_value,
-                'date': result.filing_date,
-                'source': result.source,
-                'vendor': result.entity_name,
-                'agency': 'Senate LDA',
-                'url': result.url_to_original_record,
-                'record_type': 'lobbying'
-            })
+        try:
+            all_results = []
+            base_url = "https://lda.senate.gov/api/v1/filings/"
+            query_variations = self._generate_query_variations(query)
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for historical searches
+                
+                # Search year by year for comprehensive coverage
+                for search_year in range(end_year, start_year - 1, -1):  # Start from most recent
+                    year_results = []
+                    
+                    logger.info(f"📅 Historical search for year: {search_year}")
+                    
+                    for query_variant in query_variations:
+                        try:
+                            params = {
+                                'page_size': 100,  # Maximum per page
+                                'client_name': query_variant,
+                                'filing_year': search_year,
+                                'ordering': '-dt_posted'
+                            }
+                            
+                            response = await client.get(base_url, params=params)
+                            
+                            if response.status_code == 200:
+                                data = response.json()
+                                total_count = data.get('count', 0)
+                                api_results = data.get('results', [])
+                                
+                                if total_count > 0:
+                                    logger.info(f"📊 Found {total_count} records for '{query_variant}' in {search_year}")
+                                    
+                                    # Process all results for this year/variant
+                                    for filing in api_results:
+                                        processed_result = await self._process_filing_enhanced(filing, query, include_detailed_metadata=True)
+                                        if processed_result:
+                                            year_results.append(processed_result)
+                                    
+                                    # If we found results with this variant, no need to try other variants for this year
+                                    if year_results:
+                                        break
+                            
+                            # Rate limiting for historical searches
+                            await asyncio.sleep(0.2)
+                            
+                        except Exception as e:
+                            logger.warning(f"⚠️ Error searching {search_year} with '{query_variant}': {e}")
+                            continue
+                    
+                    all_results.extend(year_results)
+                    
+                    # Log progress every few years
+                    if search_year % 3 == 0:
+                        logger.info(f"📈 Historical search progress: {end_year - search_year + 1}/{end_year - start_year + 1} years complete, {len(all_results)} total results")
+                    
+                    # Stop if we've accumulated too many results
+                    if len(all_results) >= 500:
+                        logger.info(f"🛑 Reached historical result limit of 500, stopping at year {search_year}")
+                        break
+            
+            logger.info(f"🏁 Comprehensive historical search complete. Found {len(all_results)} results across {end_year - start_year + 1} years")
+            return all_results
+            
+        except Exception as e:
+            logger.error(f"❌ Historical Senate LDA search error: {e}")
+            return []
+    
+    def _generate_query_variations(self, query: str) -> List[str]:
+        """Generate query variations for better matching"""
+        variations = [query]
         
-        return results 
+        # Add common corporate variations
+        if not any(suffix in query.upper() for suffix in ['LLC', 'INC', 'CORP', 'COMPANY']):
+            variations.extend([
+                f"{query} LLC",
+                f"{query} Inc",
+                f"{query} Client Services LLC",
+                f"{query} Client Services",
+                f"{query} Corporation"
+            ])
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_variations = []
+        for variation in variations:
+            if variation not in seen:
+                seen.add(variation)
+                unique_variations.append(variation)
+        
+        logger.debug(f"📝 Generated query variations: {unique_variations}")
+        return unique_variations
+    
+    async def _process_filing_enhanced(self, filing, original_query, include_detailed_metadata=False):
+        """Enhanced processing of Senate LDA filing with detailed metadata for correlation analysis"""
+        try:
+            # Extract basic information
+            client_info = filing.get('client', {})
+            registrant_info = filing.get('registrant', {})
+            
+            client_name = client_info.get('name', '')
+            registrant_name = registrant_info.get('name', '')
+            filing_type = filing.get('filing_type_display', 'Unknown Filing')
+            filing_year = filing.get('filing_year', '')
+            filing_period = filing.get('filing_period_display', '')
+            posted_date = filing.get('dt_posted', '')
+            filing_uuid = filing.get('filing_uuid', '')
+            
+            # Enhanced financial information extraction
+            income = filing.get('income', 0) or 0
+            expenses = filing.get('expenses', 0) or 0
+            
+            # Safely convert to numeric values
+            try:
+                income = float(income) if income and str(income).replace('.', '').replace(',', '').replace('-', '').isdigit() else 0
+            except (ValueError, TypeError):
+                income = 0
+                
+            try:
+                expenses = float(expenses) if expenses and str(expenses).replace('.', '').replace(',', '').replace('-', '').isdigit() else 0
+            except (ValueError, TypeError):
+                expenses = 0
+            
+            # Determine the primary amount (use the larger of income or expenses)
+            total_amount = max(income, expenses)
+            
+            # Build amount string
+            amount_str = None
+            if total_amount > 0:
+                amount_str = f"${total_amount:,.0f}"
+            
+            # Determine entity name and role
+            if client_name:
+                entity_name = client_name
+                role = f"Federal Lobbying Client - {filing_type}"
+            else:
+                entity_name = registrant_name or original_query
+                role = f"Federal Lobbying Registrant - {filing_type}"
+            
+            # Enhanced lobbying activities extraction
+            lobbying_activities = filing.get('lobbying_activities', [])
+            issues = []
+            specific_issues = []
+            
+            for activity in lobbying_activities:
+                if activity.get('general_issue_code_display'):
+                    issues.append(activity.get('general_issue_code_display'))
+                if activity.get('specific_issues'):
+                    specific_issues.append(activity.get('specific_issues'))
+            
+            # Remove duplicates while preserving order
+            issues = list(dict.fromkeys(issues))  
+            
+            # Build description
+            description_parts = []
+            if client_name:
+                description_parts.append(f"Client: {client_name}")
+            if registrant_name and registrant_name != client_name:
+                description_parts.append(f"Registrant: {registrant_name}")
+            if issues:
+                description_parts.append(f"Issues: {', '.join(issues[:3])}")  # Limit to top 3
+            
+            description = '; '.join(description_parts) if description_parts else f"Federal lobbying {filing_type.lower()} for {filing_year}"
+            
+            # Enhanced metadata for correlation analysis
+            enhanced_metadata = {
+                'filing_type': filing_type,
+                'filing_period': filing_period,
+                'filing_year': filing_year,
+                'client_name': client_name,
+                'registrant_name': registrant_name,
+                'income': income,
+                'expenses': expenses,
+                'total_amount': total_amount,
+                'lobbying_activities': lobbying_activities,
+                'filing_uuid': filing_uuid,
+                'posted_date': posted_date,
+                'issues': issues,
+                'specific_issues': specific_issues[:5] if specific_issues else [],  # Limit to top 5
+                'registrant_address': registrant_info.get('address_1'),
+                'registrant_city': registrant_info.get('city'),
+                'registrant_state': registrant_info.get('state_display'),
+                'client_contact_name': client_info.get('contact_name'),
+                'client_address': client_info.get('address_1'),
+                'client_city': client_info.get('city'),
+                'client_state': client_info.get('state_display')
+            }
+            
+            # Build result dict
+            result = {
+                'title': role,
+                'description': description,
+                'amount': total_amount,  # Store as numeric for easier analysis
+                'amount_display': amount_str,  # String version for display
+                'date': posted_date[:10] if posted_date else None,
+                'source': 'senate_lda',
+                'vendor': entity_name,
+                'agency': 'U.S. Senate LDA',
+                'url': f"https://lda.senate.gov/filings/public/filing/{filing_uuid}/" if filing_uuid else "https://lda.senate.gov",
+                'record_type': 'federal_lobbying',
+                'metadata': enhanced_metadata
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing enhanced Senate LDA filing: {e}")
+            return None 
