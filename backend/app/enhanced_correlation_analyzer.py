@@ -1,15 +1,12 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta, date
-from typing import Dict, List, Optional, Tuple, Any
-import pandas as pd
-from fuzzywuzzy import fuzz
-import numpy as np
+from datetime import datetime, date
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
 from app.schemas import (
     NYCPayment, FederalLobbyingRecord, NYCLobbyingRecord,
-    TimelineAnalysis, CompanyAnalysis, CorrelationResult
+    TimelineAnalysis, CompanyAnalysis
 )
 from app.adapters.enhanced_senate_lda import EnhancedSenateLDAAdapter
 from app.adapters.checkbook import search_checkbook
@@ -255,7 +252,7 @@ class EnhancedCorrelationAnalyzer:
         
         # Extract dates
         nyc_payment_dates = [p.check_date for p in nyc_payments if p.check_date]
-        nyc_lobbying_dates = [l.start_date for l in nyc_lobbying if l.start_date]
+        nyc_lobbying_dates = [lobbying_record.start_date for lobbying_record in nyc_lobbying if lobbying_record.start_date]
         federal_dates = [f.filing_date for f in federal_lobbying if f.filing_date]
         
         # Calculate date ranges

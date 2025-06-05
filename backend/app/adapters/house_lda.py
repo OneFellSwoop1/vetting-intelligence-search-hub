@@ -1,5 +1,4 @@
 import httpx
-import json
 from typing import List, Optional, Dict, Any
 from app.schemas import SearchResult
 import logging

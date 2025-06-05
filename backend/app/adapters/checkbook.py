@@ -3,8 +3,6 @@ import logging
 import os
 import base64
 from typing import List, Dict, Any
-from datetime import datetime
-from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +119,7 @@ class CheckbookAdapter:
                                             'source': 'NYC Payroll',
                                             'vendor': 'NYC Employee',
                                             'agency': item.get('agency_name', ''),
-                                            'url': f"https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e",
+                                            'url': "https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e",
                                             'record_type': 'payroll'
                                         }
                                         results.append(result)

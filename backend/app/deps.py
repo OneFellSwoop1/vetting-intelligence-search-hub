@@ -1,5 +1,4 @@
 import redis.asyncio as redis
-from fastapi import Depends
 from typing import AsyncGenerator
 import os
 

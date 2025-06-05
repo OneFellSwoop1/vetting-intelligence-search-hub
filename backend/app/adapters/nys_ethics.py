@@ -1,7 +1,6 @@
 import aiohttp
 import logging
 from typing import List, Dict, Any
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ class NYSEthicsAdapter:
                                     'source': 'NY State Procurement',
                                     'vendor': item.get('vendor_name', ''),
                                     'agency': item.get('authority_name', ''),
-                                    'url': f"https://data.ny.gov/Transparency/Authority-Procurement-Information/8w5p-k45m",
+                                    'url': "https://data.ny.gov/Transparency/Authority-Procurement-Information/8w5p-k45m",
                                     'record_type': 'procurement'
                                 }
                                 results.append(result)

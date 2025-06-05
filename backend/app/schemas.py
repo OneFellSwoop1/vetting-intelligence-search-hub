@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, Literal, Dict, Any, List
 from datetime import datetime, date
-from dataclasses import dataclass
 
 class SearchResult(BaseModel):
     source: Literal[
