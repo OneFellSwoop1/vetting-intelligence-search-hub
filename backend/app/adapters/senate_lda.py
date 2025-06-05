@@ -1,5 +1,6 @@
 import asyncio
 import httpx
+import os
 from typing import List, Optional, Dict, Any
 import logging
 from ..schemas import SearchResult
@@ -8,6 +9,10 @@ logger = logging.getLogger(__name__)
 
 # The correct base URL for Senate LDA API
 LDA_API_BASE = "https://lda.senate.gov/api/v1"
+
+def get_lda_api_key():
+    """Get LDA API key from environment variables at runtime"""
+    return os.getenv("LDA_API_KEY")
 
 async def search_senate_lda(query: str, year: Optional[str] = None) -> List[SearchResult]:
     """
@@ -25,6 +30,14 @@ async def search_senate_lda(query: str, year: Optional[str] = None) -> List[Sear
             'User-Agent': 'Vetting-Intelligence-Search-Hub/1.0',
             'Accept': 'application/json'
         }
+        
+        # Add API key authentication if available
+        lda_api_key = get_lda_api_key()
+        if lda_api_key:
+            headers['Authorization'] = f'Bearer {lda_api_key}'
+            logger.info("🔑 Using authenticated API access (120 req/min)")
+        else:
+            logger.info("🌐 Using anonymous API access (15 req/min)")
         
         async with httpx.AsyncClient(timeout=15) as client:
             # Search filings with both client and registrant name matching
@@ -198,6 +211,19 @@ class SenateLDAAdapter:
             # Enhanced query variations for better matching
             query_variations = self._generate_query_variations(query)
             
+            # Set up headers with API key if available
+            headers = {
+                'User-Agent': 'Vetting-Intelligence-Search-Hub/1.0',
+                'Accept': 'application/json'
+            }
+            
+            lda_api_key = get_lda_api_key()
+            if lda_api_key:
+                headers['Authorization'] = f'Bearer {lda_api_key}'
+                logger.info("🔑 Using authenticated API access (120 req/min)")
+            else:
+                logger.info("🌐 Using anonymous API access (15 req/min)")
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 for search_year in years_to_search:
                     logger.info(f"📅 Searching Senate LDA for year: {search_year}")
@@ -214,7 +240,7 @@ class SenateLDAAdapter:
                         logger.info(f"📡 Making API call with query: '{query_variant}' for year {search_year}")
                         
                         try:
-                            response = await client.get(base_url, params=params)
+                            response = await client.get(base_url, params=params, headers=headers)
                             logger.info(f"📊 API Response Status: {response.status_code}")
                             
                             if response.status_code == 200:
@@ -263,6 +289,19 @@ class SenateLDAAdapter:
             base_url = "https://lda.senate.gov/api/v1/filings/"
             query_variations = self._generate_query_variations(query)
             
+            # Set up headers with API key if available
+            headers = {
+                'User-Agent': 'Vetting-Intelligence-Search-Hub/1.0',
+                'Accept': 'application/json'
+            }
+            
+            lda_api_key = get_lda_api_key()
+            if lda_api_key:
+                headers['Authorization'] = f'Bearer {lda_api_key}'
+                logger.info("🔑 Using authenticated API access for historical search (120 req/min)")
+            else:
+                logger.info("🌐 Using anonymous API access for historical search (15 req/min)")
+            
             async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for historical searches
                 
                 # Search year by year for comprehensive coverage
@@ -280,7 +319,7 @@ class SenateLDAAdapter:
                                 'ordering': '-dt_posted'
                             }
                             
-                            response = await client.get(base_url, params=params)
+                            response = await client.get(base_url, params=params, headers=headers)
                             
                             if response.status_code == 200:
                                 data = response.json()
