@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import asyncio
 import logging
-from app.schemas import SearchResponse, SearchResult
 from app.adapters.checkbook import CheckbookAdapter
 from app.adapters.dbnyc import DBNYCAdapter  
 from app.adapters.nys_ethics import NYSEthicsAdapter

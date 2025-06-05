@@ -2,16 +2,14 @@ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from typing import Optional, List, Dict, Any
 import logging
 import asyncio
-import pandas as pd
 from datetime import datetime
-import io
 import uuid
 
 from ..enhanced_schemas import (
     CorrelationRequest, EnhancedCorrelationResponse, CompanyAnalysis,
     CompanyComparisonRequest, CompanyComparisonResponse,
     QuarterlySpendingAnalysis, ExportRequest, ExportResponse,
-    DataQualityReport, StrategicInsight
+    DataQualityReport
 )
 from ..enhanced_correlation_analyzer import EnhancedCorrelationAnalyzer
 from ..adapters.enhanced_senate_lda import EnhancedSenateLDAAdapter
@@ -167,8 +165,6 @@ async def compare_companies(request: CompanyComparisonRequest):
     logger.info(f"📊 Starting company comparison for: {request.company_names}")
     
     try:
-        company_analyses = []
-        
         # Analyze each company in parallel
         analysis_tasks = []
         for company_name in request.company_names:

@@ -1,5 +1,4 @@
 import httpx
-import json
 import os
 from typing import List, Optional, Dict, Any
 from app.schemas import SearchResult

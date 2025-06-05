@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Literal, Dict, Any, List, Union
+from typing import Optional, Literal, Dict, Any, List
 from datetime import datetime, date
-from dataclasses import dataclass
 
 # Enhanced base models
 class SearchResult(BaseModel):

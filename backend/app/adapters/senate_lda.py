@@ -1,4 +1,3 @@
-import os
 import asyncio
 import httpx
 from typing import List, Optional, Dict, Any
@@ -157,12 +156,12 @@ async def search_senate_lda(query: str, year: Optional[str] = None) -> List[Sear
                         
                         # Limit results to prevent overwhelming response
                         if len(results) >= 50:
-                            logger.info(f"🛑 Reached limit of 50 results, stopping")
+                            logger.info("🛑 Reached limit of 50 results, stopping")
                             break
                     
                     logger.info(f"📊 Finished processing. Found {len(results)} matching results out of {len(data['results'])} API results")
                 else:
-                    logger.warning(f"⚠️ No results returned from API response")
+                    logger.warning("⚠️ No results returned from API response")
             else:
                 logger.error(f"❌ API call failed with status {response.status_code}")
                 logger.error(f"❌ Response text: {response.text[:200]}...")

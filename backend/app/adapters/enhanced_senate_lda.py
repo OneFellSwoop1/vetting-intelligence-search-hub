@@ -1,9 +1,8 @@
 import asyncio
 import httpx
 import logging
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any
 from datetime import datetime, date
-import pandas as pd
 from ..schemas import FederalLobbyingRecord
 
 logger = logging.getLogger(__name__)
@@ -163,7 +162,7 @@ class EnhancedSenateLDAAdapter:
             if filing.get('dt_posted'):
                 try:
                     filing_date = datetime.fromisoformat(filing['dt_posted'][:10]).date()
-                except:
+                except (ValueError, TypeError):
                     pass
             
             return FederalLobbyingRecord(

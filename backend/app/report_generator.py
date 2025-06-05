@@ -1,6 +1,6 @@
 import pandas as pd
-from typing import Dict, Any, List, Optional
-from datetime import datetime, date
+from typing import Dict, Any, List
+from datetime import datetime
 import logging
 from dataclasses import dataclass
 
@@ -129,7 +129,7 @@ class ComprehensiveReportGenerator:
             elif gap_years < -1:
                 summary_parts.append(f"Local NYC activity preceded federal lobbying by approximately {abs(gap_years)} years, indicating organic growth from local to federal markets.")
             else:
-                summary_parts.append(f"Federal and local activities commenced within a similar timeframe, suggesting coordinated multi-jurisdictional strategy.")
+                summary_parts.append("Federal and local activities commenced within a similar timeframe, suggesting coordinated multi-jurisdictional strategy.")
         
         # Correlation strength
         if analysis.correlation_score > 0.7:

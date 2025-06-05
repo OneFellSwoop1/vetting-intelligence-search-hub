@@ -3,7 +3,7 @@ import json
 import os
 import hashlib
 import time
-from typing import List, Optional, Dict, Any
+from typing import Optional, Any
 import logging
 from app.schemas import SearchResult
 
@@ -34,7 +34,7 @@ class CacheService:
             'jurisdiction': jurisdiction
         }
         cache_string = json.dumps(cache_data, sort_keys=True)
-        cache_hash = hashlib.md5(cache_string.encode()).hexdigest()
+        cache_hash = hashlib.sha256(cache_string.encode()).hexdigest()
         return f"search:{cache_hash}"
     
     def get_cached_results(self, query: str, year: Optional[str] = None, jurisdiction: Optional[str] = None) -> Optional[dict]:

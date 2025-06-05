@@ -75,8 +75,11 @@ def detailed_health_check():
     # Check for enhanced components
     enhanced_available = True
     try:
-        from app.enhanced_correlation_analyzer import EnhancedCorrelationAnalyzer
-        from app.adapters.enhanced_senate_lda import EnhancedSenateLDAAdapter
+        import importlib.util
+        enhanced_analyzer_spec = importlib.util.find_spec("app.enhanced_correlation_analyzer")
+        enhanced_senate_spec = importlib.util.find_spec("app.adapters.enhanced_senate_lda")
+        if enhanced_analyzer_spec is None or enhanced_senate_spec is None:
+            enhanced_available = False
     except ImportError:
         enhanced_available = False
     

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 import logging
-import asyncio
 import pandas as pd
 from datetime import datetime
 import io
@@ -208,7 +207,7 @@ async def analyze_federal_first_patterns(
     min_correlation_score: float = Query(0.3, description="Minimum correlation score")
 ):
     """Analyze patterns of companies that lobby federally before engaging locally."""
-    logger.info(f"🔍 Analyzing federal-first lobbying patterns")
+    logger.info("🔍 Analyzing federal-first lobbying patterns")
     
     try:
         # This would require a more sophisticated implementation with a database
