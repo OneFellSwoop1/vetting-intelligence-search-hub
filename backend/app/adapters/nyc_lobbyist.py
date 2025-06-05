@@ -49,27 +49,27 @@ class NYCLobbyistAdapter:
             
             async with aiohttp.ClientSession(headers=headers) as session:
                 
-                # Search Lobbyist Registration dataset (xeam-42fh)
+                # Search City Clerk eLobbyist Data (fmf3-knd8)
                 try:
-                    lobbyist_url = f"{self.base_url}/xeam-42fh.json"
+                    lobbyist_url = f"{self.base_url}/fmf3-knd8.json"
                     
                     # Build search conditions
                     search_conditions = [
                         f"upper(lobbyist_name) like upper('%{query}%')",
                         f"upper(client_name) like upper('%{query}%')",
-                        f"upper(business_address_firm_name) like upper('%{query}%')",
-                        f"upper(lobbyist_business_address_street_1) like upper('%{query}%')"
+                        f"upper(lobbyist_activities) like upper('%{query}%')",
+                        f"upper(periodic_activities) like upper('%{query}%')"
                     ]
                     
                     where_clause = " OR ".join(search_conditions)
                     
                     if year:
-                        where_clause += f" AND date_extract_y(period_start) = {year}"
+                        where_clause += f" AND report_year = '{year}'"
                     
                     lobbyist_params = {
                         **params_base,
                         "$limit": "20",
-                        "$order": "period_start DESC",
+                        "$order": "start_date DESC",
                         "$where": where_clause
                     }
                     
@@ -82,39 +82,48 @@ class NYCLobbyistAdapter:
                                     # Extract key information
                                     lobbyist_name = item.get('lobbyist_name', 'Unknown Lobbyist')
                                     client_name = item.get('client_name', 'Unknown Client')
-                                    firm_name = item.get('business_address_firm_name', '')
                                     
-                                    # Build title based on available data
-                                    if firm_name and firm_name != lobbyist_name:
-                                        title = f"Lobbyist: {lobbyist_name} ({firm_name})"
-                                    else:
-                                        title = f"Lobbyist: {lobbyist_name}"
+                                    # Build title
+                                    title = f"NYC Lobbyist: {lobbyist_name}"
                                     
                                     # Build description
                                     description_parts = [f"Client: {client_name}"]
                                     
-                                    if item.get('specific_lobbying_subjects'):
-                                        description_parts.append(f"Subjects: {item.get('specific_lobbying_subjects')}")
+                                    if item.get('lobbyist_activities'):
+                                        description_parts.append(f"Activities: {item.get('lobbyist_activities')}")
                                     
-                                    if item.get('period_start') and item.get('period_end'):
-                                        start_date = item.get('period_start', '').split('T')[0]
-                                        end_date = item.get('period_end', '').split('T')[0]
-                                        description_parts.append(f"Period: {start_date} to {end_date}")
+                                    if item.get('report_year'):
+                                        description_parts.append(f"Year: {item.get('report_year')}")
+                                    
+                                    # Add compensation if available
+                                    compensation = item.get('compensation_total')
+                                    if compensation:
+                                        try:
+                                            comp_amount = float(compensation)
+                                            description_parts.append(f"Compensation: ${comp_amount:,.2f}")
+                                        except (ValueError, TypeError):
+                                            pass
                                     
                                     description = " | ".join(description_parts)
                                     
                                     # Extract date
-                                    date_str = item.get('period_start', '').split('T')[0] if item.get('period_start') else ''
+                                    date_str = item.get('start_date', '').split('T')[0] if item.get('start_date') else ''
+                                    
+                                    # Extract amount
+                                    amount = None
+                                    if item.get('compensation_total'):
+                                        try:
+                                            amount = float(item.get('compensation_total', 0))
+                                        except (ValueError, TypeError):
+                                            pass
                                     
                                     # Build URL to view filing
-                                    url = "https://data.cityofnewyork.us/City-Government/Lobbyist-Registration/xeam-42fh"
-                                    if item.get('id'):
-                                        url = f"https://data.cityofnewyork.us/City-Government/Lobbyist-Registration/xeam-42fh?id={item.get('id')}"
+                                    url = f"https://data.cityofnewyork.us/City-Government/City-Clerk-eLobbyist-Data/fmf3-knd8"
                                     
                                     result = {
                                         'title': title,
                                         'description': description,
-                                        'amount': None,  # Lobbying registrations don't typically have amounts
+                                        'amount': amount,
                                         'date': date_str,
                                         'source': 'NYC eLobbyist',
                                         'vendor': lobbyist_name,

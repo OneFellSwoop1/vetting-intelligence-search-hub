@@ -34,7 +34,7 @@ class CheckbookAdapter:
         return headers
         
     async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
-        """Search NYC Open Data for spending, contracts, and payroll data"""
+        """Search NYC Open Data for contract awards and payroll data"""
         try:
             results = []
             
@@ -48,49 +48,49 @@ class CheckbookAdapter:
             
             async with aiohttp.ClientSession(headers=headers) as session:
                 
-                # 1. Search Checkbook NYC 2.0 (General spending data)
+                # 1. Search Recent Contract Awards (qyyg-4tf5)
                 try:
-                    checkbook_url = f"{self.base_url}/mxwn-eh3b.json"
-                    checkbook_params = {
+                    contracts_url = f"{self.base_url}/qyyg-4tf5.json"
+                    contracts_params = {
                         **params_base,
                         "$limit": "15",
-                        "$order": "amount DESC",
-                        "$where": f"upper(vendor_name) like upper('%{query}%') OR upper(purpose) like upper('%{query}%') OR upper(agency_name) like upper('%{query}%')"
+                        "$order": "contract_amount DESC",
+                        "$where": f"upper(vendor_name) like upper('%{query}%') OR upper(short_title) like upper('%{query}%') OR upper(agency_name) like upper('%{query}%')"
                     }
                     
                     if year:
-                        checkbook_params["$where"] += f" AND date_extract_y(date) = {year}"
+                        contracts_params["$where"] += f" AND date_extract_y(start_date) = {year}"
                     
-                    async with session.get(checkbook_url, params=checkbook_params) as response:
+                    async with session.get(contracts_url, params=contracts_params) as response:
                         if response.status == 200:
                             data = await response.json()
-                            logger.info(f"Checkbook NYC 2.0 API returned {len(data)} records")
+                            logger.info(f"NYC Contract Awards API returned {len(data)} records")
                             for item in data:
                                 try:
-                                    amount = float(item.get('amount', 0))
-                                    date_str = item.get('date', '').split('T')[0] if item.get('date') else ''
+                                    amount = float(item.get('contract_amount', 0))
+                                    date_str = item.get('start_date', '').split('T')[0] if item.get('start_date') else ''
                                     
                                     result = {
-                                        'title': f"NYC Spending: {item.get('purpose', 'Government Spending')}",
-                                        'description': f"Purpose: {item.get('purpose', 'N/A')} | Category: {item.get('expense_category', 'N/A')}",
+                                        'title': f"NYC Contract: {item.get('short_title', 'City Contract')}",
+                                        'description': f"Category: {item.get('category_description', 'N/A')} | Method: {item.get('selection_method_description', 'N/A')}",
                                         'amount': amount,
                                         'date': date_str,
-                                        'source': 'NYC Checkbook',
+                                        'source': 'NYC Contracts',
                                         'vendor': item.get('vendor_name', ''),
                                         'agency': item.get('agency_name', ''),
-                                        'url': f"https://checkbooknyc.com/spending/transactions/{item.get('document_id', '')}",
-                                        'record_type': 'spending'
+                                        'url': f"https://www1.nyc.gov/site/mocs/systems/acco-procurement-and-contracting-system.page",
+                                        'record_type': 'contract'
                                     }
                                     results.append(result)
                                 except (ValueError, TypeError) as e:
-                                    logger.warning(f"Error parsing checkbook amount: {e}")
+                                    logger.warning(f"Error parsing contract amount: {e}")
                                     continue
                         else:
-                            logger.warning(f"Checkbook NYC 2.0 API error: {response.status}")
+                            logger.warning(f"NYC Contract Awards API error: {response.status}")
                 except Exception as e:
-                    logger.warning(f"Error querying Checkbook NYC 2.0: {e}")
+                    logger.warning(f"Error querying NYC Contract Awards: {e}")
                 
-                # 2. Search Citywide Payroll Data
+                # 2. Search Citywide Payroll Data (k397-673e)
                 try:
                     payroll_url = f"{self.base_url}/k397-673e.json"
                     payroll_params = {
