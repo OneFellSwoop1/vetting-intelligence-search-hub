@@ -137,6 +137,9 @@ SOCRATA_APP_TOKEN=your_socrata_token_here
 # FEC API (for federal election data)
 FEC_API_KEY=your_fec_api_key_here
 
+# Optional: Senate LDA API (for higher rate limits)
+LDA_API_KEY=your_senate_lda_api_key_here
+
 # Optional: Redis configuration
 REDIS_URL=redis://localhost:6379/0
 
@@ -148,6 +151,23 @@ DATABASE_URL=sqlite:///./vetting_hub.db
 
 1. **Socrata App Token**: [Register at NYC Open Data](https://opendata.cityofnewyork.us/)
 2. **FEC API Key**: [Get from FEC.gov](https://api.open.fec.gov/developers/)
+
+### Optional: Senate LDA API Key (Recommended for Production)
+
+For **U.S. Senate Lobbying Disclosure Act (LDA)** data, you can optionally register for an API key to increase your rate limits:
+
+- **Without API Key**: 15 requests/minute (anonymous access) = ~7 user searches/minute
+- **With API Key**: 120 requests/minute (authenticated access) = ~60 user searches/minute
+
+To register:
+1. Visit [Senate LDA API Documentation](https://lda.senate.gov/api/)
+2. Contact them to request an API key for your application
+3. Add it to your `.env` file:
+   ```
+   LDA_API_KEY=your_senate_lda_api_key_here
+   ```
+
+**Note**: The Senate LDA data source works without an API key, but with reduced rate limits.
 
 ## 🐳 Docker Deployment
 

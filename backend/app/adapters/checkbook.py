@@ -137,3 +137,9 @@ class CheckbookAdapter:
         except Exception as e:
             logger.error(f"Error in CheckbookAdapter: {e}")
             return []
+
+# Standalone function for backward compatibility
+async def search_checkbook(query: str, year: int = None) -> List[Dict[str, Any]]:
+    """Standalone function for searching NYC Checkbook data"""
+    adapter = CheckbookAdapter()
+    return await adapter.search(query, year)
