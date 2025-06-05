@@ -125,11 +125,11 @@ class NYCLobbyistAdapter:
                                         'description': description,
                                         'amount': amount,
                                         'date': date_str,
-                                        'source': 'NYC eLobbyist',
+                                        'source': 'nyc_lobbyist',
                                         'vendor': lobbyist_name,
                                         'agency': 'NYC Clerk\'s Office',
                                         'url': url,
-                                        'record_type': 'lobbying_registration'
+                                        'record_type': 'lobbying'
                                     }
                                     results.append(result)
                                 except Exception as e:

@@ -75,11 +75,11 @@ class CheckbookAdapter:
                                         'description': f"Category: {item.get('category_description', 'N/A')} | Method: {item.get('selection_method_description', 'N/A')}",
                                         'amount': amount,
                                         'date': date_str,
-                                        'source': 'NYC Contracts',
+                                        'source': 'checkbook',
                                         'vendor': item.get('vendor_name', ''),
                                         'agency': item.get('agency_name', ''),
                                         'url': f"https://www1.nyc.gov/site/mocs/systems/acco-procurement-and-contracting-system.page",
-                                        'record_type': 'contract'
+                                        'record_type': 'contracts'
                                     }
                                     results.append(result)
                                 except (ValueError, TypeError) as e:
