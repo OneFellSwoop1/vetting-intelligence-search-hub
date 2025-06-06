@@ -4,6 +4,7 @@ import base64
 from typing import List, Optional, Dict, Any
 from app.schemas import SearchResult
 import logging
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,102 @@ class NYCLobbyistAdapter:
             logger.info("Using App Token authentication for NYC Open Data")
             
         return headers
+    
+    def _group_results_by_year(self, raw_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Group NYC lobbyist results by year and entity, similar to lobbyistsearch.nyc.gov"""
+        # Group by lobbyist name and year
+        grouped = defaultdict(lambda: defaultdict(list))
+        
+        for result in raw_results:
+            lobbyist_name = result.get('lobbyist_name', 'Unknown Lobbyist')
+            report_year = result.get('report_year', 'Unknown Year')
+            grouped[lobbyist_name][report_year].append(result)
+        
+        # Create structured results
+        structured_results = []
+        
+        for lobbyist_name, years_data in grouped.items():
+            # Sort years in descending order
+            sorted_years = sorted(years_data.keys(), reverse=True)
+            
+            for year in sorted_years:
+                year_records = years_data[year]
+                
+                # Collect all clients for this lobbyist in this year
+                clients = set()
+                activities = set()
+                total_compensation = 0
+                start_dates = []
+                
+                for record in year_records:
+                    if record.get('client_name'):
+                        clients.add(record.get('client_name'))
+                    if record.get('lobbyist_activities'):
+                        activities.add(record.get('lobbyist_activities'))
+                    if record.get('compensation_total'):
+                        try:
+                            comp_amount = float(record.get('compensation_total', 0))
+                            total_compensation += comp_amount
+                        except (ValueError, TypeError):
+                            pass
+                    if record.get('start_date'):
+                        start_dates.append(record.get('start_date'))
+                
+                # Create year-grouped title
+                client_list = ", ".join(sorted(clients)) if clients else "Multiple Clients"
+                if len(client_list) > 100:
+                    client_count = len(clients)
+                    client_list = f"{list(clients)[0]} and {client_count - 1} other{'s' if client_count > 2 else ''}"
+                
+                title = f"NYC Lobbyist: {lobbyist_name} ({year})"
+                
+                # Build comprehensive description
+                description_parts = [f"Clients: {client_list}"]
+                
+                if activities:
+                    activity_list = "; ".join(sorted(activities))
+                    if len(activity_list) > 150:
+                        activity_list = activity_list[:150] + "..."
+                    description_parts.append(f"Activities: {activity_list}")
+                
+                description_parts.append(f"Year: {year}")
+                
+                if total_compensation > 0:
+                    description_parts.append(f"Total Compensation: ${total_compensation:,.2f}")
+                
+                # Number of registrations
+                if len(year_records) > 1:
+                    description_parts.append(f"Registrations: {len(year_records)}")
+                
+                description = " | ".join(description_parts)
+                
+                # Use most recent start date
+                date_str = ''
+                if start_dates:
+                    sorted_dates = sorted(start_dates, reverse=True)
+                    date_str = sorted_dates[0].split('T')[0] if sorted_dates[0] else ''
+                
+                # Build URL to NYC lobbying search with pre-filled data
+                search_url = f"https://lobbyistsearch.nyc.gov/search?lobbyist={lobbyist_name.replace(' ', '+')}&year={year}"
+                
+                structured_result = {
+                    'title': title,
+                    'description': description,
+                    'amount': total_compensation if total_compensation > 0 else None,
+                    'date': date_str,
+                    'source': 'nyc_lobbyist',
+                    'vendor': lobbyist_name,
+                    'agency': 'NYC Clerk\'s Office',
+                    'url': search_url,
+                    'record_type': 'lobbying',
+                    'year': year,
+                    'client_count': len(clients),
+                    'registration_count': len(year_records),
+                    'raw_records': year_records  # Keep raw data for detailed view
+                }
+                structured_results.append(structured_result)
+        
+        return structured_results
     
     async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
         """Search NYC Open Data for lobbying registrations and filings"""
@@ -68,8 +165,8 @@ class NYCLobbyistAdapter:
                     
                     lobbyist_params = {
                         **params_base,
-                        "$limit": "20",
-                        "$order": "start_date DESC",
+                        "$limit": "100",  # Get more records for better grouping
+                        "$order": "report_year DESC, start_date DESC",
                         "$where": where_clause
                     }
                     
@@ -77,70 +174,20 @@ class NYCLobbyistAdapter:
                         if response.status == 200:
                             data = await response.json()
                             logger.info(f"NYC eLobbyist API returned {len(data)} records")
-                            for item in data:
-                                try:
-                                    # Extract key information
-                                    lobbyist_name = item.get('lobbyist_name', 'Unknown Lobbyist')
-                                    client_name = item.get('client_name', 'Unknown Client')
-                                    
-                                    # Build title
-                                    title = f"NYC Lobbyist: {lobbyist_name}"
-                                    
-                                    # Build description
-                                    description_parts = [f"Client: {client_name}"]
-                                    
-                                    if item.get('lobbyist_activities'):
-                                        description_parts.append(f"Activities: {item.get('lobbyist_activities')}")
-                                    
-                                    if item.get('report_year'):
-                                        description_parts.append(f"Year: {item.get('report_year')}")
-                                    
-                                    # Add compensation if available
-                                    compensation = item.get('compensation_total')
-                                    if compensation:
-                                        try:
-                                            comp_amount = float(compensation)
-                                            description_parts.append(f"Compensation: ${comp_amount:,.2f}")
-                                        except (ValueError, TypeError):
-                                            pass
-                                    
-                                    description = " | ".join(description_parts)
-                                    
-                                    # Extract date
-                                    date_str = item.get('start_date', '').split('T')[0] if item.get('start_date') else ''
-                                    
-                                    # Extract amount
-                                    amount = None
-                                    if item.get('compensation_total'):
-                                        try:
-                                            amount = float(item.get('compensation_total', 0))
-                                        except (ValueError, TypeError):
-                                            pass
-                                    
-                                    # Build URL to view filing
-                                    url = f"https://data.cityofnewyork.us/City-Government/City-Clerk-eLobbyist-Data/fmf3-knd8"
-                                    
-                                    result = {
-                                        'title': title,
-                                        'description': description,
-                                        'amount': amount,
-                                        'date': date_str,
-                                        'source': 'nyc_lobbyist',
-                                        'vendor': lobbyist_name,
-                                        'agency': 'NYC Clerk\'s Office',
-                                        'url': url,
-                                        'record_type': 'lobbying'
-                                    }
-                                    results.append(result)
-                                except Exception as e:
-                                    logger.warning(f"Error parsing lobbyist record: {e}")
-                                    continue
+                            
+                            if data:
+                                # Group results by year and entity
+                                structured_results = self._group_results_by_year(data)
+                                
+                                # Limit to top 20 grouped results (but each result represents multiple registrations)
+                                results = structured_results[:20]
+                            
                         else:
                             logger.warning(f"NYC eLobbyist API error: {response.status}")
                 except Exception as e:
                     logger.warning(f"Error querying NYC eLobbyist: {e}")
                     
-            logger.info(f"NYC eLobbyist returned {len(results)} results for query: {query}")
+            logger.info(f"NYC eLobbyist returned {len(results)} grouped results for query: {query}")
             return results
             
         except Exception as e:
@@ -169,4 +216,10 @@ async def search_nyc_lobbyist(query: str, year: Optional[str] = None) -> List[Se
         )
         search_results.append(search_result)
     
-    return search_results 
+    return search_results
+
+# Module-level search function for backward compatibility
+async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
+    """Module-level search function for NYC Lobbyist data"""
+    adapter = NYCLobbyistAdapter()
+    return await adapter.search(query, year) 

@@ -5,7 +5,7 @@ from datetime import datetime, date
 # Enhanced base models
 class SearchResult(BaseModel):
     source: Literal[
-        "checkbook", "dbnyc", "nys_ethics", "senate_lda", "house_lda", "nyc_lobbyist"
+        "checkbook", "nys_ethics", "senate_lda", "house_lda", "nyc_lobbyist"
     ]
     jurisdiction: Literal["NYC", "NYS", "Federal"]
     entity_name: str

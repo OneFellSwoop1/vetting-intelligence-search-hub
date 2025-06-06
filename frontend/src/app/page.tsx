@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Calendar, Building, DollarSign, ExternalLink, Eye, FileText, TrendingUp } from 'lucide-react';
+import { InteractiveBarChart, TimelineChart, NetworkDiagram } from '@/components/InteractiveCharts';
+import type { ChartData, TimelineData } from '@/components/InteractiveCharts';
+import type { NetworkData } from '@/components/InteractiveCharts/NetworkDiagram';
 
 // Main search page for the Vetting Intelligence Search Hub
 // This will eventually replace pages/index.js
@@ -9,13 +12,16 @@ import { Search, Filter, Calendar, Building, DollarSign, ExternalLink, Eye, File
 interface SearchResult {
   title: string;
   description: string;
-  amount?: string;
+  amount?: string | number;
   date?: string;
   source: string;
   vendor?: string;
   agency?: string;
   url?: string;
   record_type?: string;
+  client_count?: number;
+  registration_count?: number;
+  year?: string;
 }
 
 interface SearchResponse {
@@ -36,8 +42,6 @@ interface SearchFilters {
 const sourceConfig = {
   senate_lda: { name: 'Senate LDA', color: 'bg-red-100 text-red-800', icon: '🏛️' },
   house_lda: { name: 'House LDA', color: 'bg-red-100 text-red-800', icon: '🏛️' },
-  fec: { name: 'FEC', color: 'bg-purple-100 text-purple-800', icon: '🗳️' },
-  dbnyc: { name: 'Federal Spending', color: 'bg-blue-100 text-blue-800', icon: '💰' },
   checkbook: { name: 'NYC Contracts', color: 'bg-green-100 text-green-800', icon: '📋' },
   nys_ethics: { name: 'NY State', color: 'bg-yellow-100 text-yellow-800', icon: '🏛️' },
   nyc_lobbyist: { name: 'NYC Lobbyist', color: 'bg-orange-100 text-orange-800', icon: '🤝' }
@@ -89,16 +93,48 @@ export default function VettingIntelligenceHub() {
     }
   };
 
-  const filteredResults = results.filter(result => {
-    if (filters.source && result.source !== filters.source) return false;
-    if (filters.recordType && result.record_type !== filters.recordType) return false;
-    if (filters.minAmount && result.amount) {
-      const amount = parseFloat(result.amount.replace(/[$,]/g, ''));
-      const minAmount = parseFloat(filters.minAmount);
-      if (amount < minAmount) return false;
-    }
-    return true;
-  });
+  // Function to group NYC Lobbyist results by year
+  const groupNYCResultsByYear = React.useCallback((results: SearchResult[]) => {
+    const nycResults = results.filter(r => r.source === 'nyc_lobbyist');
+    const otherResults = results.filter(r => r.source !== 'nyc_lobbyist');
+    
+    if (nycResults.length === 0) return results;
+    
+    // Group NYC results by year
+    const yearGroups: { [year: string]: SearchResult[] } = {};
+    nycResults.forEach(result => {
+      const year = result.year || new Date(result.date || '').getFullYear().toString();
+      if (!yearGroups[year]) yearGroups[year] = [];
+      yearGroups[year].push(result);
+    });
+    
+    // Sort years in descending order
+    const sortedYears = Object.keys(yearGroups).sort((a, b) => parseInt(b) - parseInt(a));
+    
+    // Create grouped results
+    const groupedResults: SearchResult[] = [];
+    
+    // Add other results first
+    groupedResults.push(...otherResults);
+    
+    // Add NYC results grouped by year
+    sortedYears.forEach(year => {
+      // Add a year header result
+      groupedResults.push({
+        title: `NYC Lobbying Activities - ${year}`,
+        description: `${yearGroups[year].length} lobbying records from ${year}`,
+        source: 'nyc_lobbyist_year_header',
+        year: year,
+        client_count: yearGroups[year].reduce((sum, r) => sum + (r.client_count || 0), 0),
+        registration_count: yearGroups[year].length
+      });
+      
+      // Add the actual results for this year
+      groupedResults.push(...yearGroups[year]);
+    });
+    
+    return groupedResults;
+  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -106,127 +142,361 @@ export default function VettingIntelligenceHub() {
     }
   };
 
+  const filteredResults = React.useMemo(() => {
+    return results.filter(result => {
+      if (filters.source && result.source !== filters.source) return false;
+      if (filters.recordType && result.record_type !== filters.recordType) return false;
+      if (filters.minAmount && result.amount) {
+        const amount = typeof result.amount === 'number' 
+          ? result.amount 
+          : parseFloat(result.amount.replace(/[$,]/g, ''));
+        const minAmount = parseFloat(filters.minAmount);
+        if (amount < minAmount) return false;
+      }
+      return true;
+    });
+  }, [results, filters]);
+
+  // Apply year grouping for NYC Lobbyist results
+  const displayResults = React.useMemo(() => {
+    return groupNYCResultsByYear(filteredResults);
+  }, [filteredResults, groupNYCResultsByYear]);
+
   const ResultCard = ({ result, onClick }: { result: SearchResult; onClick: () => void }) => {
     const sourceInfo = sourceConfig[result.source as keyof typeof sourceConfig] || 
                       { name: result.source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
+
+    // Handle year header cards for NYC Lobbyist grouping
+    if (result.source === 'nyc_lobbyist_year_header') {
+      return (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-blue-900">{result.title}</h3>
+                <p className="text-sm text-blue-700">{result.description}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                {result.client_count} Total Clients
+              </span>
+              <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
+                {result.registration_count} Records
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
            onClick={onClick}>
         <div className="flex justify-between items-start mb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${sourceInfo.color}`}>
               {sourceInfo.icon} {sourceInfo.name}
             </span>
+            
             {result.record_type && (
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+              <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded-full text-xs">
                 {result.record_type}
               </span>
             )}
+            
+            {/* NYC Lobbyist specific badges */}
+            {result.source === 'nyc_lobbyist' && (
+              <>
+                {result.client_count && (
+                  <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs">
+                    {result.client_count} Client{result.client_count !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {result.registration_count && result.registration_count > 1 && (
+                  <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full text-xs">
+                    {result.registration_count} Registrations
+                  </span>
+                )}
+                {result.year && (
+                  <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded-full text-xs">
+                    Year {result.year}
+                  </span>
+                )}
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          
+          <div className="flex items-center gap-3 text-sm text-gray-500">
+            {result.amount && (
+              <span className="flex items-center gap-1 font-semibold text-green-600">
+                <DollarSign className="w-4 h-4" />
+                {typeof result.amount === 'number' 
+                  ? `$${result.amount.toLocaleString()}` 
+                  : result.amount}
+              </span>
+            )}
             {result.date && (
               <span className="flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
                 {new Date(result.date).toLocaleDateString()}
               </span>
             )}
-            {result.amount && (
-              <span className="flex items-center gap-1 font-semibold text-green-600">
-                <DollarSign className="w-4 h-4" />
-                {result.amount}
-              </span>
-            )}
           </div>
         </div>
-
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-          {result.title}
-        </h3>
-
-        <p className="text-gray-600 mb-3 line-clamp-3">
-          {result.description}
-        </p>
-
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            {result.vendor && (
-              <span className="flex items-center gap-1">
-                <Building className="w-4 h-4" />
-                {result.vendor}
-              </span>
-            )}
-            {result.agency && (
-              <span>{result.agency}</span>
-            )}
+        
+        <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{result.title}</h3>
+        <p className="text-gray-600 text-sm mb-3 line-clamp-3">{result.description}</p>
+        
+        <div className="flex justify-between items-center text-xs text-gray-500">
+          <div className="flex gap-3">
+            {result.vendor && <span>Vendor: {result.vendor}</span>}
+            {result.agency && <span>Agency: {result.agency}</span>}
           </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1 text-blue-600 hover:text-blue-800">
-              <Eye className="w-4 h-4" />
-              View Details
-            </button>
-            {result.url && (
-              <a href={result.url} target="_blank" rel="noopener noreferrer"
-                 onClick={(e) => e.stopPropagation()}
-                 className="flex items-center gap-1 text-blue-600 hover:text-blue-800">
-                <ExternalLink className="w-4 h-4" />
-                Source
-              </a>
-            )}
-          </div>
+          {result.url && (
+            <ExternalLink className="w-4 h-4" />
+          )}
         </div>
       </div>
     );
   };
 
-  const AnalyticsView = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-        <TrendingUp className="w-6 h-6" />
-        Search Analytics
-      </h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Object.entries(totalHits).map(([source, count]) => {
-          const sourceInfo = sourceConfig[source as keyof typeof sourceConfig] || 
-                           { name: source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
-          return (
-            <div key={source} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${sourceInfo.color}`}>
-                    {sourceInfo.icon} {sourceInfo.name}
-                  </span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{count}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+  const AnalyticsView = () => {
+    // Prepare data for interactive charts
+    const chartData: ChartData[] = Object.entries(totalHits).map(([source, count]) => ({
+      id: source,
+      name: sourceConfig[source as keyof typeof sourceConfig]?.name || source,
+      value: count,
+      category: 'source',
+      source: source
+    }));
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Total Results: {results.length}</h3>
-        <div className="space-y-2">
+    const timelineData: TimelineData[] = results
+      .filter(r => r.date)
+      .map(r => ({
+        id: r.title,
+        date: r.date!,
+        title: r.title,
+        description: r.description,
+        amount: typeof r.amount === 'number' ? r.amount : (r.amount ? parseFloat(r.amount.replace(/[$,]/g, '')) : undefined),
+        source: r.source,
+        type: r.record_type || 'unknown'
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Create network data for entity relationships
+    const networkNodes: any[] = [];
+    const networkEdges: any[] = [];
+    const entities = new Set<string>();
+    const agencies = new Set<string>();
+
+    results.forEach(result => {
+      // Extract entities from titles and descriptions
+      if (result.vendor) entities.add(result.vendor);
+      if (result.agency) agencies.add(result.agency);
+      
+      // Add nodes for entities and agencies
+      if (result.vendor && !networkNodes.find(n => n.id === result.vendor)) {
+        networkNodes.push({
+          id: result.vendor,
+          label: result.vendor,
+          type: 'entity' as 'entity',
+          size: 15,
+          metadata: {
+            totalAmount: results
+              .filter(r => r.vendor === result.vendor)
+              .reduce((sum, r) => {
+                if (typeof r.amount === 'number') return sum + r.amount;
+                if (r.amount) return sum + parseFloat(r.amount.replace(/[$,]/g, ''));
+                return sum;
+              }, 0),
+            recordCount: results.filter(r => r.vendor === result.vendor).length,
+            source: result.source
+          }
+        });
+      }
+
+      if (result.agency && !networkNodes.find(n => n.id === result.agency)) {
+        networkNodes.push({
+          id: result.agency,
+          label: result.agency,
+          type: 'agency',
+          size: 12,
+          metadata: {
+            recordCount: results.filter(r => r.agency === result.agency).length,
+            source: result.source
+          }
+        });
+      }
+
+      // Create edges between vendors and agencies
+      if (result.vendor && result.agency) {
+        const edgeId = `${result.vendor}-${result.agency}`;
+        if (!networkEdges.find(e => e.id === edgeId)) {
+          networkEdges.push({
+            id: edgeId,
+            from: result.vendor,
+            to: result.agency,
+            type: 'contract',
+            weight: 1,
+            metadata: {
+              amount: typeof result.amount === 'number' ? result.amount : 
+                     (result.amount ? parseFloat(result.amount.replace(/[$,]/g, '')) : undefined),
+              date: result.date,
+              source: result.source
+            }
+          });
+        }
+      }
+    });
+
+    const networkData: NetworkData = {
+      nodes: networkNodes,
+      edges: networkEdges
+    };
+
+    return (
+      <div className="space-y-8 w-full">
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <TrendingUp className="w-6 h-6" />
+          Interactive Analytics Dashboard
+        </h2>
+        
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(totalHits).map(([source, count]) => {
-            const percentage = results.length > 0 ? (count / results.length * 100).toFixed(1) : 0;
             const sourceInfo = sourceConfig[source as keyof typeof sourceConfig] || 
                              { name: source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
             return (
-              <div key={source} className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs ${sourceInfo.color}`}>
-                    {sourceInfo.name}
-                  </span>
-                </span>
-                <span className="text-sm text-gray-600">{count} ({percentage}%)</span>
+              <div key={source} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${sourceInfo.color}`}>
+                      {sourceInfo.icon} {sourceInfo.name}
+                    </span>
+                  </div>
+                  <span className="text-2xl font-bold text-gray-900">{count}</span>
+                </div>
+                <div className="mt-2 text-sm text-gray-600">
+                  {results.length > 0 ? ((count / results.length) * 100).toFixed(1) : 0}% of total
+                </div>
               </div>
             );
           })}
         </div>
+
+        {/* Interactive Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Bar Chart */}
+          <div className="w-full min-h-[500px]">
+            <InteractiveBarChart data={chartData} title="Results by Source" height={450} formatType="number" />
+          </div>
+
+          {/* Timeline Chart */}
+          <div className="w-full min-h-[500px]">
+            <TimelineChart data={timelineData} title="Timeline Analysis" height={450} />
+          </div>
+        </div>
+
+        {/* Network Diagram */}
+        <div className="w-full min-h-[600px]">
+          <NetworkDiagram data={networkData} />
+        </div>
+
+        {/* Detailed Statistics */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Detailed Statistics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Data Sources</h4>
+              <div className="space-y-2">
+                {Object.entries(totalHits).map(([source, count]) => {
+                  const percentage = results.length > 0 ? (count / results.length * 100).toFixed(1) : 0;
+                  const sourceInfo = sourceConfig[source as keyof typeof sourceConfig] || 
+                                   { name: source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
+                  return (
+                    <div key={source} className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs ${sourceInfo.color}`}>
+                          {sourceInfo.name}
+                        </span>
+                      </span>
+                      <span className="text-gray-600">{count} ({percentage}%)</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Total Amounts</h4>
+              <div className="space-y-2">
+                {(() => {
+                  const amountsBySource: Record<string, number> = {};
+                  results.forEach(result => {
+                    if (result.amount) {
+                      const amount = typeof result.amount === 'number' 
+                        ? result.amount 
+                        : parseFloat(result.amount.replace(/[$,]/g, ''));
+                      amountsBySource[result.source] = (amountsBySource[result.source] || 0) + amount;
+                    }
+                  });
+                  
+                  return Object.entries(amountsBySource)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 5)
+                    .map(([source, amount]) => {
+                      const sourceInfo = sourceConfig[source as keyof typeof sourceConfig] || 
+                                       { name: source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
+                      return (
+                        <div key={source} className="flex items-center justify-between text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs ${sourceInfo.color}`}>
+                            {sourceInfo.name}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            ${amount.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    });
+                })()}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Key Metrics</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Records:</span>
+                  <span className="font-medium">{results.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Unique Vendors:</span>
+                  <span className="font-medium">{entities.size}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Unique Agencies:</span>
+                  <span className="font-medium">{agencies.size}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Date Range:</span>
+                  <span className="font-medium">
+                    {timelineData.length > 0 
+                      ? `${new Date(timelineData[0].date).getFullYear()} - ${new Date(timelineData[timelineData.length - 1].date).getFullYear()}`
+                      : 'N/A'
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const DetailView = ({ result }: { result: SearchResult }) => (
     <div className="space-y-6">
@@ -432,7 +702,7 @@ export default function VettingIntelligenceHub() {
               className={`px-4 py-2 rounded-lg font-medium ${currentView === 'search' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-300'}`}
             >
               <FileText className="w-4 h-4 inline mr-2" />
-              Results ({filteredResults.length})
+              Results ({displayResults.length})
             </button>
             <button
               onClick={() => setCurrentView('analytics')}
@@ -453,17 +723,19 @@ export default function VettingIntelligenceHub() {
 
         {/* Main Content */}
         {currentView === 'analytics' && results.length > 0 ? (
-          <AnalyticsView />
+          <div className="w-full overflow-x-auto">
+            <AnalyticsView />
+          </div>
         ) : (
           <div className="space-y-6">
             {/* Results */}
-            {filteredResults.length > 0 && (
+            {displayResults.length > 0 && (
               <>
                 <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-bold text-gray-900">
-                    Search Results ({filteredResults.length})
+                    Search Results ({displayResults.length})
                   </h2>
-                  {filteredResults.length > displayCount && (
+                  {displayResults.length > displayCount && (
                     <button
                       onClick={() => setDisplayCount(displayCount + 15)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -474,19 +746,21 @@ export default function VettingIntelligenceHub() {
                 </div>
 
                 <div className="space-y-4">
-                  {filteredResults.slice(0, displayCount).map((result, index) => (
+                  {displayResults.slice(0, displayCount).map((result, index) => (
                     <ResultCard
                       key={index}
                       result={result}
                       onClick={() => {
-                        setSelectedResult(result);
-                        setCurrentView('details');
+                        if (result.source !== 'nyc_lobbyist_year_header') {
+                          setSelectedResult(result);
+                          setCurrentView('details');
+                        }
                       }}
                     />
                   ))}
                 </div>
 
-                {filteredResults.length > displayCount && (
+                {displayResults.length > displayCount && (
                   <div className="text-center">
                     <button
                       onClick={() => setDisplayCount(displayCount + 15)}
@@ -500,7 +774,7 @@ export default function VettingIntelligenceHub() {
             )}
 
             {/* No Results */}
-            {!loading && query && filteredResults.length === 0 && results.length > 0 && (
+            {!loading && query && displayResults.length === 0 && results.length > 0 && (
               <div className="text-center py-12">
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No results match your filters</h3>
                 <p className="text-gray-600">Try adjusting your search criteria</p>
@@ -523,7 +797,7 @@ export default function VettingIntelligenceHub() {
                   <ul className="text-left text-gray-600 space-y-2">
                     <li>• Search for companies, individuals, or organizations</li>
                     <li>• View lobbying records from Senate and House LDA</li>
-                    <li>• Check campaign finance data from FEC</li>
+                    <li>• Check contract and payment data</li>
                     <li>• Review federal spending and NYC contracts</li>
                     <li>• Use filters to narrow down results</li>
                     <li>• Click on results for detailed information</li>

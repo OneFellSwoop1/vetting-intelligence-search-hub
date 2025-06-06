@@ -219,4 +219,10 @@ class HouseLDAAdapter:
                 'record_type': 'federal_spending'
             })
         
-        return results 
+        return results
+
+# Module-level search function for backward compatibility
+async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
+    """Module-level search function for House LDA data"""
+    adapter = HouseLDAAdapter()
+    return await adapter.search(query, year) 

@@ -503,4 +503,10 @@ class SenateLDAAdapter:
             
         except Exception as e:
             logger.error(f"❌ Error processing enhanced Senate LDA filing: {e}")
-            return None 
+            return None
+
+# Module-level search function for backward compatibility
+async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
+    """Module-level search function for Senate LDA data"""
+    adapter = SenateLDAAdapter()
+    return await adapter.search(query, year) 

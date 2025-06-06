@@ -79,7 +79,13 @@ class CacheService:
             # Convert SearchResult objects to dictionaries for JSON serialization
             serializable_results = []
             for result in results:
-                serializable_results.append(result.model_dump())
+                if hasattr(result, 'model_dump'):
+                    serializable_results.append(result.model_dump())
+                elif isinstance(result, dict):
+                    serializable_results.append(result)
+                else:
+                    # Convert to dict if it's a different type
+                    serializable_results.append(result.__dict__ if hasattr(result, '__dict__') else str(result))
             
             cache_data = {
                 'total_hits': total_hits,

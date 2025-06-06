@@ -54,7 +54,7 @@ const defaultFilters: SearchFilters = {
   jurisdictions: ['NYC', 'NYS', 'Federal'],
   yearRange: [2020, new Date().getFullYear()],
   entityType: 'All',
-  dataSources: ['checkbook', 'dbnyc', 'nys_ethics', 'senate_lda', 'house_lda', 'nyc_lobbyist'],
+  dataSources: ['checkbook', 'nys_ethics', 'senate_lda', 'house_lda', 'nyc_lobbyist'],
 };
 
 export const useAppStore = create<AppState>()(
