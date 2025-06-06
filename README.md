@@ -11,13 +11,10 @@
 The Vetting Intelligence Search Hub aggregates data from multiple government transparency sources to provide comprehensive insights into:
 
 - **NYC Checkbook**: Municipal spending and contracts
-- **DoITT Business Portal**: NYC business registrations  
 - **NYS Ethics**: State-level lobbying activities
 - **Senate LDA**: Federal lobbying disclosures
-- **House LDA**: Congressional lobbying reports
+- **House LDA**: Congressional lobbying reports (Federal spending data)
 - **NYC Lobbyist Search**: Municipal lobbying activities
-- **FEC Data**: Federal campaign finance information
-- **USASpending.gov**: Federal contract spending
 
 ## ✨ Key Features
 
@@ -55,9 +52,8 @@ The Vetting Intelligence Search Hub aggregates data from multiple government tra
 │ • Tailwind CSS  │    │ • Data Adapters │    │ • Senate LDA    │
 │ • TypeScript    │    │ • Caching Layer │    │ • House LDA     │
 │ • Responsive    │    │ • Correlation   │    │ • NYS Ethics    │
-└─────────────────┘    │   Analysis      │    │ • FEC Data      │
-                       └─────────────────┘    │ • USASpending   │
-                                              └─────────────────┘
+└─────────────────┘    │   Analysis      │    │ • NYC Lobbyist  │
+                       └─────────────────┘    └─────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -134,8 +130,7 @@ Copy `env.example` to `.env` and configure:
 # Socrata API (for NYC data)
 SOCRATA_APP_TOKEN=your_socrata_token_here
 
-# FEC API (for federal election data)
-FEC_API_KEY=your_fec_api_key_here
+
 
 # Optional: Senate LDA API (for higher rate limits)
 LDA_API_KEY=your_senate_lda_api_key_here
@@ -150,7 +145,6 @@ DATABASE_URL=sqlite:///./vetting_hub.db
 ### Getting API Keys
 
 1. **Socrata App Token**: [Register at NYC Open Data](https://opendata.cityofnewyork.us/)
-2. **FEC API Key**: [Get from FEC.gov](https://api.open.fec.gov/developers/)
 
 ### Optional: Senate LDA API Key (Recommended for Production)
 
@@ -229,12 +223,10 @@ python -m pytest --cov=app tests/
 | Source | Type | Coverage | Update Frequency |
 |--------|------|----------|------------------|
 | NYC Checkbook | Contracts/Spending | NYC | Daily |
-| DoITT Business Portal | Business Registration | NYC | Real-time |
 | NYS Ethics | Lobbying | New York State | Monthly |
 | Senate LDA | Lobbying | Federal | Quarterly |
-| House LDA | Lobbying | Federal | Quarterly |
-| FEC | Campaign Finance | Federal | Daily |
-| USASpending.gov | Federal Spending | Federal | Daily |
+| House LDA | Federal Spending | Federal | Daily |
+| NYC Lobbyist | Lobbying | NYC | Real-time |
 
 ## 🤝 Contributing
 

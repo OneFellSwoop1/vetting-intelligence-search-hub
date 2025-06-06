@@ -68,4 +68,10 @@ class NYSEthicsAdapter:
             
         except Exception as e:
             logger.error(f"Error in NYSEthicsAdapter: {e}")
-            return [] 
+            return []
+
+# Module-level search function for backward compatibility
+async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
+    """Module-level search function for NY State Ethics data"""
+    adapter = NYSEthicsAdapter()
+    return await adapter.search(query, year) 

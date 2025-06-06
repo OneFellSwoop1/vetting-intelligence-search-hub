@@ -143,3 +143,9 @@ async def search_checkbook(query: str, year: int = None) -> List[Dict[str, Any]]
     """Standalone function for searching NYC Checkbook data"""
     adapter = CheckbookAdapter()
     return await adapter.search(query, year)
+
+# Module-level search function for backward compatibility
+async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
+    """Module-level search function for NYC Checkbook data"""
+    adapter = CheckbookAdapter()
+    return await adapter.search(query, year)

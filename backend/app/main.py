@@ -1,10 +1,11 @@
 import logging
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.routers import search, correlation
+from app.websocket import websocket_endpoint
 
 # Load environment variables from environment.env file
 load_dotenv('environment.env')
@@ -39,6 +40,12 @@ app.add_middleware(
 # Include routers
 app.include_router(search.router)
 app.include_router(correlation.router)
+
+# WebSocket endpoint for real-time search streaming
+@app.websocket("/ws/{client_id}")
+async def websocket_route(websocket: WebSocket, client_id: str):
+    """WebSocket endpoint for real-time search progress streaming."""
+    await websocket_endpoint(websocket, client_id)
 
 # Include enhanced correlation router
 try:
@@ -96,7 +103,7 @@ def detailed_health_check():
                 "senate_lda": "available",
                 "enhanced_senate_lda": "available" if enhanced_available else "not_available",
                 "house_lda": "available",
-                "dbnyc": "available",
+    
                 "nys_ethics": "available"
             }
         },

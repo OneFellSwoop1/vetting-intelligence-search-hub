@@ -1,26 +1,25 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import asyncio
 import logging
-from app.adapters.checkbook import CheckbookAdapter
-from app.adapters.dbnyc import DBNYCAdapter  
-from app.adapters.nys_ethics import NYSEthicsAdapter
-from app.adapters.senate_lda import SenateLDAAdapter
-from app.adapters.house_lda import HouseLDAAdapter
-from app.adapters.nyc_lobbyist import NYCLobbyistAdapter
-from app.cache import cache_service
+
+# Import all adapters except dbnyc (removed)
+from ..adapters import checkbook as checkbook_adapter
+from ..adapters import nys_ethics as nys_ethics_adapter  
+from ..adapters import senate_lda as senate_lda_adapter
+from ..adapters import house_lda as house_lda_adapter
+from ..adapters import nyc_lobbyist as nyc_lobbyist_adapter
+
+from ..schemas import SearchResult
+from ..cache import CacheService
+from fastapi import Query
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Initialize adapters
-checkbook_adapter = CheckbookAdapter()
-dbnyc_adapter = DBNYCAdapter()
-nys_ethics_adapter = NYSEthicsAdapter()
-senate_lda_adapter = SenateLDAAdapter()
-house_lda_adapter = HouseLDAAdapter()
-nyc_lobbyist_adapter = NYCLobbyistAdapter()
+# Initialize cache service
+cache_service = CacheService()
 
 class SearchRequest(BaseModel):
     query: str
@@ -121,7 +120,6 @@ async def search(request: SearchRequest):
     # Define all search tasks
     search_tasks = [
         ("checkbook", checkbook_adapter.search(request.query, year_int)),
-        ("dbnyc", dbnyc_adapter.search(request.query, year_int)),
         ("nys_ethics", nys_ethics_adapter.search(request.query, year_int)),
         ("senate_lda", senate_lda_adapter.search(request.query, year_int)),
         ("house_lda", house_lda_adapter.search(request.query, year_int)),
@@ -131,7 +129,7 @@ async def search(request: SearchRequest):
     # Filter by jurisdiction if specified
     if request.jurisdiction:
         jurisdiction_filter = {
-            "NYC": ["checkbook", "dbnyc", "nyc_lobbyist"],
+            "NYC": ["checkbook", "nyc_lobbyist"],
             "NYS": ["nys_ethics"],
             "Federal": ["senate_lda", "house_lda"]
         }
@@ -174,9 +172,9 @@ async def search(request: SearchRequest):
         source_priority = {
             'senate_lda': 1,
             'house_lda': 2, 
-            'dbnyc': 3,
+            'checkbook': 3,
             'nyc_lobbyist': 4,
-            'checkbook': 5,
+            'nys_ethics': 5,
             'NY State Procurement': 6
         }
         
@@ -220,4 +218,44 @@ async def get_cache_stats():
 async def clear_cache():
     """Clear all cached search results."""
     deleted_count = cache_service.clear_cache()
-    return {"message": f"Cleared {deleted_count} cached entries"} 
+    return {"message": f"Cleared {deleted_count} cached entries"}
+
+@router.get("/suggestions")
+async def get_search_suggestions(
+    q: str = Query(..., description="Query string for suggestions"),
+    limit: int = Query(5, description="Maximum number of suggestions to return")
+):
+    """Get search suggestions based on query input."""
+    if len(q) < 2:
+        return {"suggestions": []}
+    
+    # This is a simplified version - in production you'd have a more sophisticated suggestion system
+    # You could use elasticsearch, a dedicated search service, or maintain a database of popular searches
+    
+    # For now, return some common entity-based suggestions
+    common_entities = [
+        "Microsoft", "Google", "Apple", "Amazon", "Meta", "Tesla", "OpenAI",
+        "IBM", "Oracle", "Salesforce", "Netflix", "Uber", "Airbnb",
+        "Goldman Sachs", "JPMorgan", "Bank of America", "Wells Fargo",
+        "Lockheed Martin", "Boeing", "Raytheon", "General Dynamics",
+        "Pfizer", "Johnson & Johnson", "Moderna", "Novartis",
+        "ExxonMobil", "Chevron", "BP", "Shell", "ConocoPhillips"
+    ]
+    
+    # Filter suggestions based on query
+    suggestions = [
+        entity for entity in common_entities 
+        if q.lower() in entity.lower()
+    ][:limit]
+    
+    # Add some query variations if we have space
+    if len(suggestions) < limit:
+        variations = [
+            f"{q} Inc",
+            f"{q} LLC", 
+            f"{q} Corporation",
+            f"{q} Corp"
+        ]
+        suggestions.extend(variations[:limit - len(suggestions)])
+    
+    return {"suggestions": suggestions} 
