@@ -2,10 +2,12 @@ from pydantic import BaseModel
 from typing import Optional, Literal, Dict, Any, List
 from datetime import datetime, date
 
+SOURCE_TYPES = Literal[
+    "checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist"
+]
+
 class SearchResult(BaseModel):
-    source: Literal[
-        "checkbook", "nys_ethics", "senate_lda", "house_lda", "nyc_lobbyist"
-    ]
+    source: SOURCE_TYPES
     jurisdiction: Literal["NYC", "NYS", "Federal"]
     entity_name: str
     role_or_title: Optional[str]

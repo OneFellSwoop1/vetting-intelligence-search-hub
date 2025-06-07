@@ -4,10 +4,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 from app.main import app
 from app.adapters.checkbook import search_checkbook
-from app.adapters.dbnyc import search_dbnyc
 from app.adapters.nys_ethics import search_nys_ethics
 from app.adapters.senate_lda import search_senate_lda
-from app.adapters.house_lda import search_house_lda
 from app.adapters.nyc_lobbyist import search_nyc_lobbyist
 from app.schemas import SearchResult
 from app.cache import cache_service
@@ -22,8 +20,8 @@ class TestSearchEndpoint:
         response = client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ok"
-        assert "version" in data
+        assert data["status"] == "healthy"
+        assert "data_sources" in data
     
     @patch('app.routers.search.asyncio.gather')
     def test_search_endpoint_success(self, mock_gather):
@@ -40,7 +38,6 @@ class TestSearchEndpoint:
                 filing_date="2024-01-01",
                 url_to_original_record="https://example.com/1"
             )],
-            [],  # dbnyc - no results
             [SearchResult(
                 source="nys_ethics",
                 jurisdiction="NYS",
@@ -52,7 +49,6 @@ class TestSearchEndpoint:
                 url_to_original_record="https://example.com/2"
             )],
             [],  # senate_lda
-            [],  # house_lda
             []   # nyc_lobbyist
         ]
         
@@ -91,7 +87,7 @@ class TestSearchEndpoint:
     def test_search_jurisdiction_filter(self):
         """Test jurisdiction filtering."""
         with patch('app.routers.search.asyncio.gather') as mock_gather:
-            mock_gather.return_value = [[], [], []]  # Only 3 tasks for NYC
+            mock_gather.return_value = [[], []]  # Only 2 tasks for NYC
             
             response = client.post("/search", json={
                 "query": "test",
@@ -99,10 +95,10 @@ class TestSearchEndpoint:
             })
             
             assert response.status_code == 200
-            # Should only call NYC sources (checkbook, dbnyc, nyc_lobbyist)
+            # Should only call NYC sources (checkbook, nyc_lobbyist)
             assert mock_gather.call_count == 1
             args = mock_gather.call_args[0]
-            assert len(args[0]) == 3  # 3 tasks for NYC sources
+            assert len(args[0]) == 2  # 2 tasks for NYC sources
 
 
 class TestAdapters:
@@ -289,7 +285,7 @@ def sample_search_result():
 def mock_search_response():
     """Fixture providing a mock search response."""
     return {
-        "total_hits": {"checkbook": 1, "dbnyc": 0},
+                        "total_hits": {"checkbook": 1},
         "results": [
             {
                 "source": "checkbook",

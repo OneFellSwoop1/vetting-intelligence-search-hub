@@ -4,11 +4,10 @@ from typing import Optional, Dict, Any, List
 import asyncio
 import logging
 
-# Import all adapters except dbnyc (removed)
+# Import all adapters except dbnyc (removed) and house_lda (combined with senate_lda)
 from ..adapters import checkbook as checkbook_adapter
 from ..adapters import nys_ethics as nys_ethics_adapter  
 from ..adapters import senate_lda as senate_lda_adapter
-from ..adapters import house_lda as house_lda_adapter
 from ..adapters import nyc_lobbyist as nyc_lobbyist_adapter
 
 from ..schemas import SearchResult
@@ -122,7 +121,6 @@ async def search(request: SearchRequest):
         ("checkbook", checkbook_adapter.search(request.query, year_int)),
         ("nys_ethics", nys_ethics_adapter.search(request.query, year_int)),
         ("senate_lda", senate_lda_adapter.search(request.query, year_int)),
-        ("house_lda", house_lda_adapter.search(request.query, year_int)),
         ("nyc_lobbyist", nyc_lobbyist_adapter.search(request.query, year_int)),
     ]
     
@@ -131,7 +129,7 @@ async def search(request: SearchRequest):
         jurisdiction_filter = {
             "NYC": ["checkbook", "nyc_lobbyist"],
             "NYS": ["nys_ethics"],
-            "Federal": ["senate_lda", "house_lda"]
+            "Federal": ["senate_lda"]
         }
         
         allowed_sources = jurisdiction_filter.get(request.jurisdiction, [])
@@ -171,11 +169,9 @@ async def search(request: SearchRequest):
         # Define source priority (lower number = higher priority)
         source_priority = {
             'senate_lda': 1,
-            'house_lda': 2, 
-            'checkbook': 3,
-            'nyc_lobbyist': 4,
-            'nys_ethics': 5,
-            'NY State Procurement': 6
+            'checkbook': 2,
+            'nyc_lobbyist': 3,
+            'nys_ethics': 4
         }
         
         priority = source_priority.get(source, 99)

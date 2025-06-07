@@ -47,11 +47,10 @@ interface FilterSidebarProps {
 }
 
 const sourceConfig = {
-  senate_lda: { name: 'Senate LDA', count: 0 },
-  house_lda: { name: 'House LDA', count: 0 },
-  checkbook: { name: 'NYC Contracts', count: 0 },
-  nys_ethics: { name: 'NY State Ethics', count: 0 },
-  nyc_lobbyist: { name: 'NYC Lobbyist', count: 0 }
+  senate_lda: { name: 'Senate LDA (House & Senate Lobbying)', color: 'bg-red-100 text-red-800', icon: '🏛️' },
+  checkbook: { name: 'NYC Contracts', color: 'bg-green-100 text-green-800', icon: '📋' },
+  nys_ethics: { name: 'NY State', color: 'bg-yellow-100 text-yellow-800', icon: '🏛️' },
+  nyc_lobbyist: { name: 'NYC Lobbyist', color: 'bg-orange-100 text-orange-800', icon: '🤝' }
 };
 
 const jurisdictionOptions = [

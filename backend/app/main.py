@@ -59,17 +59,14 @@ except ImportError as e:
 def health_check():
     """Health check endpoint."""
     return {
-        "status": "ok",
-        "message": "Vetting Intelligence Search Hub is running with enhanced correlation analysis",
-        "version": "2.0.0",
-        "features": [
-            "Multi-source government data search",
-            "Multi-jurisdictional correlation analysis", 
-            "Historical federal lobbying data",
-            "Timeline analysis and strategic insights",
-            "Company comparison and pattern analysis",
-            "Excel/CSV export capabilities"
-        ]
+        "status": "healthy",
+        "message": "Vetting Intelligence Search Hub API is running",
+        "data_sources": {
+            "checkbook": "available",
+            "nys_ethics": "available", 
+            "senate_lda": "available",
+            "nyc_lobbyist": "available"
+        }
     }
 
 @app.get("/health")
@@ -102,8 +99,6 @@ def detailed_health_check():
                 "nyc_lobbyist": "available", 
                 "senate_lda": "available",
                 "enhanced_senate_lda": "available" if enhanced_available else "not_available",
-                "house_lda": "available",
-    
                 "nys_ethics": "available"
             }
         },

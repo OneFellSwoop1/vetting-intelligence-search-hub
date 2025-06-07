@@ -321,4 +321,224 @@ class EnhancedSenateLDAAdapter:
             else:
                 return "stable"
         
-        return "stable" 
+        return "stable"
+
+async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
+    """
+    🔍 Enhanced Senate LDA search for query with comprehensive entity matching
+    🌐 Using anonymous API access (15 req/min)
+    """
+    results = []
+    
+    try:
+        logger.info(f"🔍 Starting enhanced Senate LDA search for query: '{query}', year: {year}")
+        logger.info(f"🌐 Using anonymous API access (15 req/min)")
+        
+        # Search multiple years if no year specified, but limit to recent years for performance
+        years_to_search = [year] if year else [2024, 2023]
+        
+        # Enhanced query variations for better matching
+        query_variations = _generate_enhanced_query_variations(query)
+        logger.info(f"📝 Generated {len(query_variations)} query variations")
+        
+        # Add respectful delay for anonymous API usage
+        await asyncio.sleep(2.0)
+        
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            for search_year in years_to_search:
+                if len(results) >= 50:  # Limit total results
+                    break
+                    
+                logger.info(f"📅 Searching Senate LDA for year: {search_year}")
+                
+                # Try each query variation until we get good results
+                for query_variant in query_variations[:3]:  # Limit to first 3 variations for performance
+                    if len(results) >= 50:
+                        break
+                    
+                    try:
+                        logger.info(f"📡 Making API call with query: '{query_variant}' for year {search_year}")
+                        
+                        # Use anonymous access (no API key)
+                        url = f"https://lda.senate.gov/api/v1/filings/"
+                        params = {
+                            'client_name': query_variant,
+                            'filing_year': search_year,
+                            'page_size': 50,
+                            'ordering': '-dt_posted'
+                        }
+                        
+                        headers = {
+                            'User-Agent': 'Vetting-Intelligence-Search-Hub/2.0',
+                            'Accept': 'application/json'
+                        }
+                        
+                        response = await client.get(url, params=params, headers=headers)
+                        
+                        logger.info(f"📊 API Response Status: {response.status_code}")
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            filings = data.get('results', [])
+                            logger.info(f"📈 API returned {len(filings)} total records for {search_year} with query '{query_variant}'")
+                            
+                            for filing in filings:
+                                if len(results) >= 50:
+                                    break
+                                result = _parse_filing_to_dict(filing, query)
+                                if result:
+                                    results.append(result)
+                            
+                            logger.info(f"✅ Found {len([f for f in filings if f])} results for '{query_variant}' in {search_year}")
+                            
+                            # If we found good results with this variation, continue to next year
+                            if len(filings) > 10:
+                                break
+                                
+                        else:
+                            logger.warning(f"❌ API Error {response.status_code} for query '{query_variant}' in {search_year}")
+                            logger.debug(f"Response: {response.text[:200]}")
+                        
+                        # Rate limiting for anonymous access
+                        await asyncio.sleep(4.0)  # 15 requests per minute = 4 second intervals
+                        
+                    except Exception as e:
+                        logger.error(f"Error searching for '{query_variant}' in {search_year}: {e}")
+                        continue
+        
+        logger.info(f"🏁 Enhanced Senate LDA search for '{query}' completed. Returning {len(results)} results")
+        return results
+        
+    except Exception as e:
+        logger.error(f"Enhanced Senate LDA search error: {e}")
+        return []
+
+def _generate_enhanced_query_variations(company_name: str) -> List[str]:
+    """Generate enhanced query variations for better entity matching"""
+    variations = [company_name]
+    company_upper = company_name.upper()
+    
+    # Base variations
+    variations.extend([
+        company_name.upper(),
+        company_name.lower(),
+        company_name.title()
+    ])
+    
+    # Corporate entity variations
+    base_name = company_name
+    for suffix in ['INC', 'CORP', 'CORPORATION', 'COMPANY', 'CO', 'LLC', 'LTD']:
+        if suffix in company_upper:
+            base_name = company_name.replace(suffix, '').replace(suffix.lower(), '').strip()
+            break
+    
+    if base_name != company_name:
+        # Add variations of the base name
+        for suffix in ['LLC', 'Inc', 'Corporation', 'Client Services LLC', 'Client Services']:
+            variations.append(f"{base_name} {suffix}")
+            variations.append(f"{base_name.upper()} {suffix.upper()}")
+    
+    # Special case for known corporate patterns
+    if 'microsoft' in company_name.lower():
+        variations.extend([
+            'Microsoft Corporation',
+            'MICROSOFT CORPORATION',
+            'Microsoft Corp',
+            'Microsoft Inc'
+        ])
+    elif 'google' in company_name.lower():
+        variations.extend([
+            'Google Inc',
+            'Google Client Services LLC',
+            'GOOGLE CLIENT SERVICES LLC',
+            'Google LLC',
+            'Alphabet Inc'
+        ])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_variations = []
+    for variation in variations:
+        normalized = variation.strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            unique_variations.append(normalized)
+    
+    return unique_variations
+
+def _parse_filing_to_dict(filing: Dict[str, Any], query: str) -> Dict[str, Any]:
+    """Parse a single LDA filing into standard dictionary format"""
+    try:
+        client_info = filing.get('client', {})
+        registrant_info = filing.get('registrant', {})
+        
+        client_name = client_info.get('name', 'Unknown Client')
+        registrant_name = registrant_info.get('name', 'Unknown Registrant')
+        filing_type = filing.get('filing_type_display', 'Unknown')
+        filing_year = filing.get('filing_year', 'Unknown')
+        filing_period = filing.get('filing_period_display', 'Unknown')
+        
+        # Enhanced financial data processing
+        income = _safe_float_conversion(filing.get('income', 0))
+        expenses = _safe_float_conversion(filing.get('expenses', 0))
+        primary_amount = max(income, expenses) if income or expenses else 0
+        
+        # Build description with lobbying activities
+        description_parts = [f"Filing Type: {filing_type}", f"Period: {filing_period}"]
+        
+        lobbying_activities = filing.get('lobbying_activities', [])
+        if lobbying_activities:
+            issues = []
+            for activity in lobbying_activities[:3]:  # Limit to first 3 activities
+                issue = activity.get('general_issue_code_display', 'Unknown Issue')
+                if issue not in issues:
+                    issues.append(issue)
+            if issues:
+                description_parts.append(f"Issues: {', '.join(issues)}")
+        
+        # Add income information
+        if primary_amount > 0:
+            description_parts.append(f"Amount: ${primary_amount:,.2f}")
+        
+        description = " | ".join(description_parts)
+        
+        # Create official filing link
+        filing_uuid = filing.get('filing_uuid', '')
+        filing_url = f"https://lda.senate.gov/filings/public/filing/{filing_uuid}/print/" if filing_uuid else "https://lda.senate.gov/"
+        
+        return {
+            'entity_name': client_name,
+            'registrant': registrant_name,
+            'description': description,
+            'amount': f"${primary_amount:,.2f}" if primary_amount > 0 else "$0.00",
+            'date': f"{filing_year}",
+            'year': int(filing_year) if str(filing_year).isdigit() else None,
+            'source': 'Senate LDA (House & Senate Lobbying)',
+            'jurisdiction': 'Federal',
+            'filing_type': filing_type,
+            'filing_period': filing_period,
+            'url': filing_url,
+            'type': 'lobbying_disclosure'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error parsing filing to dict: {e}")
+        return None
+
+def _safe_float_conversion(value: Any) -> float:
+    """Safely convert various value types to float"""
+    if value is None:
+        return 0.0
+    
+    try:
+        # Handle string representations of numbers
+        if isinstance(value, str):
+            # Remove common formatting characters
+            cleaned = value.replace(',', '').replace('$', '').replace(' ', '')
+            if cleaned in ['', '-', 'None', 'null']:
+                return 0.0
+            return float(cleaned)
+        
+        return float(value)
+    except (ValueError, TypeError):
+        return 0.0 

@@ -1,151 +1,104 @@
-import aiohttp
+import httpx
 import logging
-import os
-import base64
+import asyncio
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-class CheckbookAdapter:
-    def __init__(self):
-        self.name = "NYC Checkbook"
-        self.base_url = "https://data.cityofnewyork.us/resource"
-        self.api_key_id = os.getenv('SOCRATA_API_KEY_ID')
-        self.api_key_secret = os.getenv('SOCRATA_API_KEY_SECRET')
-        self.app_token = os.getenv('SOCRATA_APP_TOKEN')  # Fallback
-        
-    def _get_auth_headers(self):
-        """Get authentication headers for Socrata API"""
-        headers = {
-            'User-Agent': 'Vetting-Intelligence-Search-Hub/1.0',
-            'Accept': 'application/json'
-        }
-        
-        # Use OAuth credentials if available
-        if self.api_key_id and self.api_key_secret:
-            # Create Basic Auth header for OAuth
-            credentials = f"{self.api_key_id}:{self.api_key_secret}"
-            encoded_credentials = base64.b64encode(credentials.encode()).decode()
-            headers['Authorization'] = f'Basic {encoded_credentials}'
-            logger.info("Using OAuth authentication for NYC Open Data")
-        else:
-            logger.info("Using App Token authentication for NYC Open Data")
-            
-        return headers
-        
-    async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
-        """Search NYC Open Data for contract awards and payroll data"""
-        try:
-            results = []
-            
-            # Set up headers for better API access
-            headers = self._get_auth_headers()
-            
-            # Add SOCRATA API token if available
-            params_base = {}
-            if self.app_token:
-                params_base["$$app_token"] = self.app_token
-            
-            async with aiohttp.ClientSession(headers=headers) as session:
-                
-                # 1. Search Recent Contract Awards (qyyg-4tf5)
-                try:
-                    contracts_url = f"{self.base_url}/qyyg-4tf5.json"
-                    contracts_params = {
-                        **params_base,
-                        "$limit": "15",
-                        "$order": "contract_amount DESC",
-                        "$where": f"upper(vendor_name) like upper('%{query}%') OR upper(short_title) like upper('%{query}%') OR upper(agency_name) like upper('%{query}%')"
-                    }
-                    
-                    if year:
-                        contracts_params["$where"] += f" AND date_extract_y(start_date) = {year}"
-                    
-                    async with session.get(contracts_url, params=contracts_params) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            logger.info(f"NYC Contract Awards API returned {len(data)} records")
-                            for item in data:
-                                try:
-                                    amount = float(item.get('contract_amount', 0))
-                                    date_str = item.get('start_date', '').split('T')[0] if item.get('start_date') else ''
-                                    
-                                    result = {
-                                        'title': f"NYC Contract: {item.get('short_title', 'City Contract')}",
-                                        'description': f"Category: {item.get('category_description', 'N/A')} | Method: {item.get('selection_method_description', 'N/A')}",
-                                        'amount': amount,
-                                        'date': date_str,
-                                        'source': 'checkbook',
-                                        'vendor': item.get('vendor_name', ''),
-                                        'agency': item.get('agency_name', ''),
-                                        'url': f"https://www1.nyc.gov/site/mocs/systems/acco-procurement-and-contracting-system.page",
-                                        'record_type': 'contracts'
-                                    }
-                                    results.append(result)
-                                except (ValueError, TypeError) as e:
-                                    logger.warning(f"Error parsing contract amount: {e}")
-                                    continue
-                        else:
-                            logger.warning(f"NYC Contract Awards API error: {response.status}")
-                except Exception as e:
-                    logger.warning(f"Error querying NYC Contract Awards: {e}")
-                
-                # 2. Search Citywide Payroll Data (k397-673e)
-                try:
-                    payroll_url = f"{self.base_url}/k397-673e.json"
-                    payroll_params = {
-                        **params_base,
-                        "$limit": "10",
-                        "$order": "total_other_pay DESC",
-                        "$where": f"upper(agency_name) like upper('%{query}%') OR upper(title_description) like upper('%{query}%')"
-                    }
-                    
-                    if year:
-                        payroll_params["$where"] += f" AND fiscal_year = {year}"
-                    
-                    async with session.get(payroll_url, params=payroll_params) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            logger.info(f"NYC Payroll API returned {len(data)} records")
-                            for item in data:
-                                try:
-                                    total_pay = float(item.get('total_other_pay', 0))
-                                    if total_pay > 0:  # Only include if there's actual pay data
-                                        result = {
-                                            'title': f"NYC Employee: {item.get('title_description', 'City Employee')}",
-                                            'description': f"Agency: {item.get('agency_name', 'N/A')} | Title: {item.get('title_description', 'N/A')}",
-                                            'amount': total_pay,
-                                            'date': f"{item.get('fiscal_year', 'N/A')}",
-                                            'source': 'NYC Payroll',
-                                            'vendor': 'NYC Employee',
-                                            'agency': item.get('agency_name', ''),
-                                            'url': "https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e",
-                                            'record_type': 'payroll'
-                                        }
-                                        results.append(result)
-                                except (ValueError, TypeError) as e:
-                                    logger.warning(f"Error parsing payroll amount: {e}")
-                                    continue
-                        else:
-                            logger.warning(f"NYC Payroll API error: {response.status}")
-                except Exception as e:
-                    logger.warning(f"Error querying NYC Payroll: {e}")
-                    
-            logger.info(f"NYC Checkbook returned {len(results)} results for query: {query}")
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error in CheckbookAdapter: {e}")
-            return []
-
-# Standalone function for backward compatibility
 async def search_checkbook(query: str, year: int = None) -> List[Dict[str, Any]]:
-    """Standalone function for searching NYC Checkbook data"""
-    adapter = CheckbookAdapter()
-    return await adapter.search(query, year)
+    """
+    Search NYC Contract Awards and Spending data via accessible Socrata API
+    Uses accessible datasets for NYC spending and contract information
+    """
+    results = []
+    
+    try:
+        # Add delay for respectful API usage
+        await asyncio.sleep(1.0)
+        
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            
+            # Use multiple accessible NYC datasets
+            datasets = [
+                {
+                    "id": "qyyg-4tf5",
+                    "name": "Recent Contract Awards",
+                    "url": "https://data.cityofnewyork.us/resource/qyyg-4tf5.json"
+                }
+            ]
+            
+            for dataset in datasets:
+                try:
+                    # Build search parameters for Socrata API
+                    params = {
+                        "$limit": 500,
+                        "$where": f"upper(vendor_name) LIKE '%{query.upper()}%' OR upper(short_title) LIKE '%{query.upper()}%' OR upper(agency_name) LIKE '%{query.upper()}%'",
+                        "$order": "contract_amount DESC"
+                    }
+                    
+                    # Add year filter if specified
+                    if year:
+                        year_filter = f"date_extract_y(start_date) = {year}"
+                        if "$where" in params:
+                            params["$where"] += f" AND {year_filter}"
+                        else:
+                            params["$where"] = year_filter
+                    
+                    logger.info(f"Calling {dataset['name']} API for '{query}' with limit={params['$limit']}...")
+                    
+                    response = await client.get(dataset["url"], params=params)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        logger.info(f"{dataset['name']} returned {len(data)} raw results")
+                        
+                        for item in data:
+                            try:
+                                # Extract and format the contract/spending record
+                                amount_str = item.get('contract_amount', item.get('start_amount_sum', item.get('amount', '0')))
+                                try:
+                                    amount = float(amount_str)
+                                    amount_formatted = f"${amount:,.2f}"
+                                except (ValueError, TypeError):
+                                    amount = 0
+                                    amount_formatted = "$0.00"
+                                
+                                result = {
+                                    'entity_name': item.get('vendor_name', item.get('vendor', 'Unknown Vendor')),
+                                    'amount': amount_formatted,
+                                    'date': item.get('start_date', item.get('issue_date', 'Unknown Date'))[:10] if item.get('start_date') or item.get('issue_date') else 'Unknown Date',
+                                    'agency': item.get('agency_name', item.get('agency', 'Unknown Agency')),
+                                    'description': item.get('short_title', item.get('purpose', item.get('description', 'No description available'))),
+                                    'document_id': item.get('pin', item.get('contract_number', item.get('document_id', ''))),
+                                    'dataset': dataset['name'],
+                                    'source': 'checkbook'
+                                }
+                                
+                                results.append(result)
+                                
+                            except Exception as e:
+                                logger.warning(f"Error processing {dataset['name']} record: {e}")
+                                continue
+                        
+                    else:
+                        logger.warning(f"{dataset['name']} API error: HTTP {response.status_code}")
+                        logger.debug(f"Response: {response.text[:200]}")
+                
+                except Exception as e:
+                    logger.warning(f"Error searching {dataset['name']}: {e}")
+                    continue
+        
+        logger.info(f"NYC Checkbook search completed. Found {len(results)} total results for '{query}'")
+        
+        # Sort by amount (descending) and limit to top 200 results
+        results.sort(key=lambda x: float(x['amount'].replace('$', '').replace(',', '')) if x['amount'] != '$0.00' else 0, reverse=True)
+        return results[:200]
+        
+    except Exception as e:
+        logger.error(f"NYC Checkbook search error: {e}")
+        return []
 
-# Module-level search function for backward compatibility
+# Add alias for compatibility with websocket imports
 async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
-    """Module-level search function for NYC Checkbook data"""
-    adapter = CheckbookAdapter()
-    return await adapter.search(query, year)
+    """Alias for search_checkbook to maintain compatibility."""
+    return await search_checkbook(query, year)
