@@ -7,20 +7,10 @@ from fastapi import WebSocket, WebSocketDisconnect
 logger = logging.getLogger(__name__)
 
 # Import adapters directly
-from app.adapters.checkbook import CheckbookAdapter
-  
-from app.adapters.nys_ethics import NYSEthicsAdapter
-from app.adapters.senate_lda import SenateLDAAdapter
-from app.adapters.house_lda import HouseLDAAdapter
-from app.adapters.nyc_lobbyist import NYCLobbyistAdapter
-
-# Initialize adapters
-checkbook_adapter = CheckbookAdapter()
-
-nys_ethics_adapter = NYSEthicsAdapter()
-senate_lda_adapter = SenateLDAAdapter()
-house_lda_adapter = HouseLDAAdapter()
-nyc_lobbyist_adapter = NYCLobbyistAdapter()
+from app.adapters import checkbook as checkbook_adapter
+from app.adapters import nys_ethics as nys_ethics_adapter  
+from app.adapters import senate_lda as senate_lda_adapter
+from app.adapters import nyc_lobbyist as nyc_lobbyist_adapter
 
 async def search_all_sources(query: str, year: str = None, jurisdiction: str = None):
     """Search all sources for WebSocket streaming."""
@@ -30,10 +20,8 @@ async def search_all_sources(query: str, year: str = None, jurisdiction: str = N
     # Define all search tasks
     search_tasks = [
         ("checkbook", checkbook_adapter.search(query, year_int)),
-
         ("nys_ethics", nys_ethics_adapter.search(query, year_int)),
         ("senate_lda", senate_lda_adapter.search(query, year_int)),
-        ("house_lda", house_lda_adapter.search(query, year_int)),
         ("nyc_lobbyist", nyc_lobbyist_adapter.search(query, year_int)),
     ]
     
@@ -115,7 +103,7 @@ class ConnectionManager:
             'jurisdiction': jurisdiction,
             'status': 'started',
             'sources_completed': 0,
-            'total_sources': 5,
+            'total_sources': 4,
             'results': [],
             'total_hits': {}
         }
@@ -125,15 +113,14 @@ class ConnectionManager:
             'type': 'search_started',
             'query': query,
             'session_id': client_id,
-            'total_sources': 5
+            'total_sources': 4
         }, client_id)
 
         # Data sources to search
         sources = [
             {'name': 'checkbook', 'display_name': 'NYC Checkbook'},
             {'name': 'nys_ethics', 'display_name': 'NY State Ethics'},
-            {'name': 'senate_lda', 'display_name': 'Senate LDA'},
-            {'name': 'house_lda', 'display_name': 'House LDA'},
+            {'name': 'senate_lda', 'display_name': 'Federal Lobbying (Senate LDA)'},
             {'name': 'nyc_lobbyist', 'display_name': 'NYC Lobbyist'}
         ]
 

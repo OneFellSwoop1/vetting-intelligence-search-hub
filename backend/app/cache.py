@@ -5,7 +5,7 @@ import hashlib
 import time
 from typing import Optional, Any
 import logging
-from app.schemas import SearchResult
+
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +50,9 @@ class CacheService:
                 data = json.loads(cached_data)
                 logger.info(f"Cache hit for query: '{query}' (key: {cache_key})")
                 
-                # Convert results back to SearchResult objects
-                results = []
-                for result_data in data.get('results', []):
-                    results.append(SearchResult(**result_data))
-                
                 return {
                     'total_hits': data.get('total_hits', {}),
-                    'results': results
+                    'results': data.get('results', [])
                 }
             else:
                 logger.debug(f"Cache miss for query: '{query}' (key: {cache_key})")
@@ -67,7 +62,7 @@ class CacheService:
             logger.error(f"Error retrieving cached results: {e}")
             return None
     
-    def cache_results(self, query: str, total_hits: dict, results: list[SearchResult], 
+    def cache_results(self, query: str, total_hits: dict, results: list, 
                      year: Optional[str] = None, jurisdiction: Optional[str] = None):
         """Cache search results for 24 hours."""
         if not self.redis_client:

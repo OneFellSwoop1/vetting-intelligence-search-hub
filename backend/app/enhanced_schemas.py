@@ -5,7 +5,7 @@ from datetime import datetime, date
 # Enhanced base models
 class SearchResult(BaseModel):
     source: Literal[
-        "checkbook", "nys_ethics", "senate_lda", "house_lda", "nyc_lobbyist"
+        "checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist"
     ]
     jurisdiction: Literal["NYC", "NYS", "Federal"]
     entity_name: str
@@ -210,4 +210,8 @@ class ExportResponse(BaseModel):
     download_url: str
     file_size: int
     expires_at: datetime
-    export_format: str 
+    export_format: str
+
+SOURCE_TYPES = Literal[
+    "checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist"
+] 
