@@ -87,7 +87,7 @@ const sourceConfig = {
 };
 
 // Helper function to group NYC Lobbyist results by year
-const groupNYCResultsByYear = (results: SearchResult[]): SearchResult[] => {
+function groupNYCResultsByYear(results: SearchResult[]): SearchResult[] {
   const nycResults = results.filter(r => r.source === 'nyc_lobbyist');
   const otherResults = results.filter(r => r.source !== 'nyc_lobbyist');
   
@@ -127,7 +127,7 @@ const groupNYCResultsByYear = (results: SearchResult[]): SearchResult[] => {
   });
   
   return groupedResults;
-};
+}
 
 export default function VettingIntelligenceHub() {
   const [query, setQuery] = useState('');
