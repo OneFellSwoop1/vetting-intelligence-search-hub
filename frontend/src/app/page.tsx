@@ -183,6 +183,7 @@ export default function VettingIntelligenceHub() {
     }
   };
 
+  // Filtered results based on active filters
   const filteredResults = React.useMemo(() => {
     return results.filter(result => {
       if (filters.source && result.source !== filters.source) return false;
