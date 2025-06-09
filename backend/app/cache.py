@@ -74,21 +74,33 @@ class CacheService:
             # Convert SearchResult objects to dictionaries for JSON serialization
             serializable_results = []
             for result in results:
-                if isinstance(result, dict):
-                    # Already a dict, use directly
-                    serializable_results.append(result)
-                elif hasattr(result, 'model_dump'):
-                    # Pydantic model with model_dump method
-                    serializable_results.append(result.model_dump())
-                elif hasattr(result, 'dict'):
-                    # Pydantic model with dict method (older versions)
-                    serializable_results.append(result.dict())
-                elif hasattr(result, '__dict__'):
-                    # Regular object with __dict__
-                    serializable_results.append(result.__dict__)
-                else:
-                    # Convert to string as fallback
-                    serializable_results.append(str(result))
+                try:
+                    if isinstance(result, dict):
+                        # Already a dict, use directly
+                        serializable_results.append(result)
+                    elif hasattr(result, 'model_dump'):
+                        # Pydantic model with model_dump method
+                        serializable_results.append(result.model_dump())
+                    elif hasattr(result, 'dict'):
+                        # Pydantic model with dict method (older versions)
+                        serializable_results.append(result.dict())
+                    elif hasattr(result, '__dict__'):
+                        # Regular object with __dict__
+                        serializable_results.append(result.__dict__)
+                    else:
+                        # Convert to string as fallback
+                        serializable_results.append(str(result))
+                except Exception as e:
+                    logger.warning(f"Error serializing result for cache: {e}, using fallback serialization")
+                    # Fallback: try to convert to dict or string
+                    try:
+                        if hasattr(result, '__dict__'):
+                            serializable_results.append(result.__dict__)
+                        else:
+                            serializable_results.append(str(result))
+                    except:
+                        # Ultimate fallback
+                        serializable_results.append({'error': 'Failed to serialize result'})
             
             cache_data = {
                 'total_hits': total_hits,

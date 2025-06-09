@@ -24,6 +24,7 @@ class SearchRequest(BaseModel):
     query: str
     year: Optional[str] = None
     jurisdiction: Optional[str] = None
+    sources: Optional[List[str]] = None
 
 def analyze_results(results: list) -> Dict[str, Any]:
     """Analyze search results to provide financial and statistical insights."""
@@ -123,6 +124,10 @@ async def search(request: SearchRequest):
         ("senate_lda", senate_lda_adapter.search(request.query, year_int)),
         ("nyc_lobbyist", nyc_lobbyist_adapter.search(request.query, year_int)),
     ]
+    
+    # Filter by sources if specified
+    if request.sources:
+        search_tasks = [(source, task) for source, task in search_tasks if source in request.sources]
     
     # Filter by jurisdiction if specified
     if request.jurisdiction:
