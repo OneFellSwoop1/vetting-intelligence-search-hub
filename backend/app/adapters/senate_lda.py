@@ -23,111 +23,149 @@ async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
     results = []
     api_key = get_lda_api_key()
     
-    # Log authentication status
+    # Use API key authentication with X-API-Key header if available
+    headers = {}
     if api_key:
+        headers["X-API-Key"] = api_key
         logger.info("🔑 Using authenticated API access (120 req/min)")
+        rate_limit_delay = 0.5  # 120 requests/minute
     else:
         logger.info("🌐 Using anonymous API access (15 req/min)")
+        rate_limit_delay = 4.1  # 15 requests/minute
     
     try:
         logger.info(f"🔍 Starting enhanced Senate LDA search for query: '{query}', year: {year}")
         
-        # Search multiple years if no year specified
-        years_to_search = [year] if year else [2024, 2023]
+        # Search multiple years if no year specified, otherwise just the specified year
+        years_to_search = [year] if year else [2024, 2023, 2022, 2021, 2020]
         
-        # Rate limiting based on authentication
-        base_delay = 0.5 if api_key else 4.0  # Authenticated: 120/min, Anonymous: 15/min
-        
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             for search_year in years_to_search:
-                if len(results) >= 50:  # Limit total results
-                    break
-                    
                 logger.info(f"📅 Searching Senate LDA for year: {search_year}")
                 
-                # Try multiple search variations for better results
-                search_variations = [
+                # Generate multiple search variations for better results
+                search_terms = [
                     query,
                     f"{query} LLC",
-                    f"{query} Inc",
+                    f"{query} Inc", 
+                    f"{query} Corporation",
                     f"{query} Client Services LLC",
                     f"{query} Client Services"
                 ]
                 
-                for search_term in search_variations:
-                    if len(results) >= 50:
-                        break
-                        
+                year_results = []
+                
+                for search_term in search_terms:
                     try:
                         logger.info(f"📡 Making API call with query: '{search_term}' for year {search_year}")
                         
-                        # Build URL parameters (without API key in URL)
+                        # Build URL with query parameters
+                        base_url = "https://lda.senate.gov/api/v1/filings/"
                         params = {
-                            'client_name': search_term,
-                            'filing_year': search_year,
-                            'page_size': 50,
-                            'ordering': '-dt_posted'
+                            "client_name": search_term,
+                            "filing_year": search_year,
+                            "page_size": 100,  # Maximum allowed page size
+                            "ordering": "-dt_posted"
                         }
                         
-                        # Construct the URL manually to avoid encoding issues
-                        base_url = "https://lda.senate.gov/api/v1/filings/"
-                        param_strings = [f"{k}={quote(str(v))}" for k, v in params.items()]
-                        url = f"{base_url}?{'&'.join(param_strings)}"
-                        
-                        # Set up headers with API key if available
-                        headers = {}
-                        if api_key:
-                            headers['Authorization'] = f'Token {api_key}'
-                        
-                        response = await client.get(url, headers=headers)
-                        logger.info(f"📊 API Response Status: {response.status_code}")
-                        
-                        if response.status_code == 200:
-                            data = response.json()
-                            total_count = data.get('count', 0)
-                            logger.info(f"📈 API returned {total_count} total records for {search_year} with query '{search_term}'")
+                        # Implement pagination to get ALL results (no limit)
+                        page = 1
+                        search_term_results = []
+                        while True:
+                            params["page"] = page
                             
-                            for filing in data.get('results', []):
-                                if len(results) >= 50:
-                                    break
-                                result = parse_filing(filing, query)
-                                if result:
-                                    results.append(result)
+                            # Make API request with authentication header
+                            response = await client.get(base_url, params=params, headers=headers)
+                            logger.info(f"📊 API Response Status: {response.status_code}")
                             
-                            if data.get('results'):
-                                logger.info(f"✅ Found {len(data.get('results', []))} results for '{search_term}' in {search_year}")
-                            
-                        elif response.status_code == 401:
-                            logger.warning(f"🔐 Authentication failed for Senate LDA API (401). API key may be invalid.")
-                            # Fall back to anonymous access for this search term
-                            url_anonymous = f"https://lda.senate.gov/api/v1/filings/?client_name={quote(search_term)}&filing_year={search_year}&page_size=25"
-                            anon_response = await client.get(url_anonymous)
-                            if anon_response.status_code == 200:
-                                data = anon_response.json()
-                                for filing in data.get('results', []):
-                                    if len(results) >= 50:
+                            if response.status_code == 200:
+                                data = response.json()
+                                total_count = data.get('count', 0)
+                                current_results = data.get('results', [])
+                                
+                                if page == 1:
+                                    logger.info(f"📈 API returned {total_count} total records for {search_year} with query '{search_term}'")
+                                
+                                if current_results:
+                                    logger.info(f"✅ Found {len(current_results)} results on page {page} for '{search_term}' in {search_year}")
+                                    
+                                    # Process and add results with year grouping
+                                    for filing in current_results:
+                                        # Create a unique key to avoid duplicates across search terms
+                                        filing_uuid = filing.get('filing_uuid', '')
+                                        
+                                        # Check if this filing was already added by another search term
+                                        already_exists = any(r.get('raw_data', {}).get('filing_uuid') == filing_uuid for r in year_results)
+                                        
+                                        if not already_exists:
+                                            result_item = {
+                                                'source': 'senate_lda',
+                                                'title': f"LDA Filing: {filing.get('client', {}).get('name', 'Unknown Client')}",
+                                                'description': f"Filing Type: {filing.get('filing_type_display', 'Unknown')} | Period: {filing.get('filing_period_display', 'Unknown')} | Income: ${filing.get('income', '0')}",
+                                                'vendor': filing.get('registrant', {}).get('name', 'Unknown Registrant'),
+                                                'agency': filing.get('client', {}).get('name', 'Unknown Client'),
+                                                'amount': float(filing.get('income', 0)) if filing.get('income') else 0,
+                                                'amount_str': f"${filing.get('income', '0')}",
+                                                'date': filing.get('dt_posted', ''),
+                                                'year': filing.get('filing_year'),
+                                                'type': f"Lobbying - {filing.get('filing_type_display', 'Unknown')}",
+                                                'url': filing.get('filing_document_url', ''),
+                                                'raw_data': filing
+                                            }
+                                            search_term_results.append(result_item)
+                                    
+                                    # Check if there are more pages
+                                    if not data.get('next'):
                                         break
-                                    result = parse_filing(filing, query)
-                                    if result:
-                                        results.append(result)
+                                    page += 1
+                                    
+                                    # Rate limiting delay between pages
+                                    await asyncio.sleep(rate_limit_delay)
+                                else:
+                                    logger.info(f"⚪ No results found on page {page} for '{search_term}' in {search_year}")
+                                    break
                             
-                        else:
-                            logger.warning(f"⚠️ API request failed with status {response.status_code}")
+                            elif response.status_code == 401:
+                                logger.warning(f"🔑 Authentication failed for '{search_term}' in {search_year}. API key may be invalid.")
+                                break
+                            
+                            elif response.status_code == 429:
+                                logger.warning(f"⏳ Rate limit hit. Waiting {rate_limit_delay * 2} seconds...")
+                                await asyncio.sleep(rate_limit_delay * 2)
+                                continue
+                            
+                            else:
+                                logger.warning(f"⚠️ API request failed with status {response.status_code}: {response.text}")
+                                break
                         
-                        await asyncio.sleep(base_delay)  # Rate limiting
-                     
-                    except httpx.RequestError as e:
-                        logger.error(f"🚨 HTTP error searching Senate LDA for '{search_term}' in {search_year}: {e}")
-                        continue
+                        # Add results from this search term (deduplication is handled above)
+                        if search_term_results:
+                            logger.info(f"✅ Found {len(search_term_results)} total results for '{search_term}' in {search_year}")
+                            year_results.extend(search_term_results)
+                            
+                        # Rate limiting delay between search terms
+                        await asyncio.sleep(rate_limit_delay)
+                        
                     except Exception as e:
-                        logger.error(f"🚨 Error parsing Senate LDA data for '{search_term}' in {search_year}: {e}")
+                        logger.error(f"❌ Error searching Senate LDA for '{search_term}' in {search_year}: {str(e)}")
                         continue
+                
+                # Add year results to main results
+                if year_results:
+                    logger.info(f"📊 Found {len(year_results)} total results for {search_year}")
+                    results.extend(year_results)
+                
+                # Rate limiting delay between years
+                await asyncio.sleep(rate_limit_delay)
         
-        logger.info(f"Senate LDA search completed: {len(results)} results for '{query}'")
+        # Sort results by year (descending) and date (descending)
+        results.sort(key=lambda x: (x.get('year', 0), x.get('date', '')), reverse=True)
+        
+        logger.info(f"🏁 Enhanced Senate LDA search for '{query}' completed. Returning {len(results)} results")
         return results
         
     except Exception as e:
-        logger.error(f"Error in Senate LDA search: {e}")
+        logger.error(f"❌ Error in Senate LDA search: {str(e)}")
         return []
 
 def parse_filing(filing: Dict[str, Any], query: str) -> Dict[str, Any]:
@@ -154,50 +192,41 @@ def parse_filing(filing: Dict[str, Any], query: str) -> Dict[str, Any]:
             if issues:
                 description_parts.append(f"Issues: {', '.join(issues)}")
         
-        # Add income information
-        if income and income != '0.00':
-            try:
-                income_amount = float(income)
-                if income_amount > 0:
-                    description_parts.append(f"Income: ${income_amount:,.2f}")
-            except ValueError:
-                pass
-        
         description = " | ".join(description_parts)
-        
-        # Create official filing link
-        filing_url = f"https://lda.senate.gov/filings/public/filing/{filing_uuid}/print/" if filing_uuid else "https://lda.senate.gov/"
+        if len(description) > 200:
+            description = description[:197] + "..."
         
         return {
-            'entity_name': client_name,
-            'registrant': registrant_name,
+            'source': 'senate_lda',
+            'title': f"LDA Filing: {client_name}",
             'description': description,
-            'amount': income or '0.00',
-            'date': f"{filing_year}",
-            'year': int(filing_year) if str(filing_year).isdigit() else None,
-            'source': 'Senate LDA (House & Senate Lobbying)',
-            'jurisdiction': 'Federal',
-            'filing_type': filing_type,
-            'filing_period': filing_period,
-            'url': filing_url,
-            'type': 'lobbying_disclosure'
+            'vendor': registrant_name,
+            'agency': client_name,
+            'amount': float(income.replace('$', '').replace(',', '')) if isinstance(income, str) else float(income or 0),
+            'amount_str': f"${income}",
+            'date': filing.get('dt_posted', ''),
+            'year': filing_year,
+            'type': f"Lobbying - {filing_type}",
+            'url': f"https://lda.senate.gov/filings/public/filing/{filing_uuid}/",
+            'raw_data': filing
         }
-        
     except Exception as e:
-        logger.error(f"Error parsing filing: {e}")
+        logger.error(f"Error parsing filing: {str(e)}")
         return None
 
+# For backward compatibility
 class SenateHouseLDAAdapter:
-    """Combined adapter for both Senate and House LDA filings since they come from the same database"""
+    """Adapter class for Senate and House LDA data"""
+    
     def __init__(self):
-        self.name = "Senate/House LDA"
-        
+        pass
+    
     async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
-        """Search LDA data and return in standard dictionary format"""
+        """Search wrapper for the main search function"""
         return await search(query, year)
 
-# Module-level search function for backward compatibility
+# Legacy function for backward compatibility
 async def search_senate_lda(query: str, year: str = None) -> List[Dict[str, Any]]:
-    """Module-level search function for LDA data"""
-    adapter = SenateHouseLDAAdapter()
-    return await adapter.search(query, int(year) if year else None) 
+    """Legacy wrapper function"""
+    year_int = int(year) if year else None
+    return await search(query, year_int) 
