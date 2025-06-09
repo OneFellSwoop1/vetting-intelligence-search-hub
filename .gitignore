@@ -157,4 +157,4 @@ safety_scan_report.json
 # Local development files
 test_server.py
 test_*.py
-!tests/ 
+!tests/ # Force CI run
