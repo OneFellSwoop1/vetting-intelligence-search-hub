@@ -28,7 +28,7 @@ jobs:
         cd backend
         python -c "from app.main import app; print('✅ Backend imports successful')"
       env:
-        LDA_API_KEY: ${{ secrets.LDA_API_KEY || 'dummy_key_for_testing' }}
+        LDA_API_KEY: ${{ secrets.LDA_API_KEY }}
 
   test-frontend:
     runs-on: ubuntu-latest
