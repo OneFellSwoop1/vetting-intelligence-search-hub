@@ -86,6 +86,49 @@ const sourceConfig = {
   nyc_lobbyist: { name: 'NYC Lobbyist', color: 'bg-orange-100 text-orange-800', icon: '🤝' }
 };
 
+// Helper function to group NYC Lobbyist results by year
+const groupNYCResultsByYear = (results: SearchResult[]): SearchResult[] => {
+  const nycResults = results.filter(r => r.source === 'nyc_lobbyist');
+  const otherResults = results.filter(r => r.source !== 'nyc_lobbyist');
+  
+  if (nycResults.length === 0) return results;
+  
+  // Group NYC results by year
+  const yearGroups: { [year: string]: SearchResult[] } = {};
+  nycResults.forEach(result => {
+    const year = result.year || new Date(result.date || '').getFullYear().toString();
+    if (!yearGroups[year]) yearGroups[year] = [];
+    yearGroups[year].push(result);
+  });
+  
+  // Sort years in descending order
+  const sortedYears = Object.keys(yearGroups).sort((a, b) => parseInt(b) - parseInt(a));
+  
+  // Create grouped results
+  const groupedResults: SearchResult[] = [];
+  
+  // Add other results first
+  groupedResults.push(...otherResults);
+  
+  // Add NYC results grouped by year
+  sortedYears.forEach(year => {
+    // Add a year header result
+    groupedResults.push({
+      title: `NYC Lobbying Activities - ${year}`,
+      description: `${yearGroups[year].length} lobbying records from ${year}`,
+      source: 'nyc_lobbyist_year_header',
+      year: year,
+      client_count: yearGroups[year].reduce((sum, r) => sum + (r.client_count || 0), 0),
+      registration_count: yearGroups[year].length
+    });
+    
+    // Add the actual results for this year
+    groupedResults.push(...yearGroups[year]);
+  });
+  
+  return groupedResults;
+};
+
 export default function VettingIntelligenceHub() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -97,50 +140,6 @@ export default function VettingIntelligenceHub() {
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [displayCount, setDisplayCount] = useState(15);
-
-  // Function to group NYC Lobbyist results by year
-  // Move this function definition before it's used
-  const groupNYCResultsByYear = React.useCallback((results: SearchResult[]) => {
-    const nycResults = results.filter(r => r.source === 'nyc_lobbyist');
-    const otherResults = results.filter(r => r.source !== 'nyc_lobbyist');
-    
-    if (nycResults.length === 0) return results;
-    
-    // Group NYC results by year
-    const yearGroups: { [year: string]: SearchResult[] } = {};
-    nycResults.forEach(result => {
-      const year = result.year || new Date(result.date || '').getFullYear().toString();
-      if (!yearGroups[year]) yearGroups[year] = [];
-      yearGroups[year].push(result);
-    });
-    
-    // Sort years in descending order
-    const sortedYears = Object.keys(yearGroups).sort((a, b) => parseInt(b) - parseInt(a));
-    
-    // Create grouped results
-    const groupedResults: SearchResult[] = [];
-    
-    // Add other results first
-    groupedResults.push(...otherResults);
-    
-    // Add NYC results grouped by year
-    sortedYears.forEach(year => {
-      // Add a year header result
-      groupedResults.push({
-        title: `NYC Lobbying Activities - ${year}`,
-        description: `${yearGroups[year].length} lobbying records from ${year}`,
-        source: 'nyc_lobbyist_year_header',
-        year: year,
-        client_count: yearGroups[year].reduce((sum, r) => sum + (r.client_count || 0), 0),
-        registration_count: yearGroups[year].length
-      });
-      
-      // Add the actual results for this year
-      groupedResults.push(...yearGroups[year]);
-    });
-    
-    return groupedResults;
-  }, []);
 
   const searchData = async () => {
     if (!query.trim()) return;
