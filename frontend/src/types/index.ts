@@ -15,7 +15,7 @@ export interface VetRecord {
 
 export type DataSource = 
   | "checkbook" 
- 
+  | "dbnyc"
   | "nys_ethics" 
   | "senate_lda" 
   | "house_lda" 

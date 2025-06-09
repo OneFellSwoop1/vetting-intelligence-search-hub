@@ -19,60 +19,109 @@ async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
     """
     Search Senate LDA (Lobbying Disclosure Act) data including both House and Senate filings.
     The Senate LDA database contains filings from both chambers of Congress.
-    Uses anonymous access (no API key required).
     """
     results = []
+    api_key = get_lda_api_key()
+    
+    # Log authentication status
+    if api_key:
+        logger.info("🔑 Using authenticated API access (120 req/min)")
+    else:
+        logger.info("🌐 Using anonymous API access (15 req/min)")
     
     try:
+        logger.info(f"🔍 Starting enhanced Senate LDA search for query: '{query}', year: {year}")
+        
         # Search multiple years if no year specified
-        years_to_search = [year] if year else [2024, 2023, 2022, 2021]
+        years_to_search = [year] if year else [2024, 2023]
         
-        # Add small delay for respectful API usage (anonymous rate limit: 15/minute)
-        await asyncio.sleep(2.0)
+        # Rate limiting based on authentication
+        base_delay = 0.5 if api_key else 4.0  # Authenticated: 120/min, Anonymous: 15/min
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             for search_year in years_to_search:
                 if len(results) >= 50:  # Limit total results
                     break
                     
-                try:
-                    # Search by client name first
-                    client_url = f"https://lda.senate.gov/api/v1/filings/?client_name__icontains={quote(query)}&filing_year={search_year}&page_size=25"
-                    logger.info(f"Searching Senate LDA client names for '{query}' in {search_year}: {client_url}")
-                    
-                    client_response = await client.get(client_url)
-                    if client_response.status_code == 200:
-                        client_data = client_response.json()
-                        for filing in client_data.get('results', []):
-                            if len(results) >= 50:
-                                break
-                            result = parse_filing(filing, query)
-                            if result:
-                                results.append(result)
-                    
-                    # Also search by registrant name
-                    if len(results) < 50:
-                        registrant_url = f"https://lda.senate.gov/api/v1/filings/?registrant__name__icontains={quote(query)}&filing_year={search_year}&page_size=25"
-                        logger.info(f"Searching Senate LDA registrant names for '{query}' in {search_year}")
+                logger.info(f"📅 Searching Senate LDA for year: {search_year}")
+                
+                # Try multiple search variations for better results
+                search_variations = [
+                    query,
+                    f"{query} LLC",
+                    f"{query} Inc",
+                    f"{query} Client Services LLC",
+                    f"{query} Client Services"
+                ]
+                
+                for search_term in search_variations:
+                    if len(results) >= 50:
+                        break
                         
-                        reg_response = await client.get(registrant_url)
-                        if reg_response.status_code == 200:
-                            reg_data = reg_response.json()
-                            for filing in reg_data.get('results', []):
+                    try:
+                        logger.info(f"📡 Making API call with query: '{search_term}' for year {search_year}")
+                        
+                        # Build URL parameters (without API key in URL)
+                        params = {
+                            'client_name': search_term,
+                            'filing_year': search_year,
+                            'page_size': 50,
+                            'ordering': '-dt_posted'
+                        }
+                        
+                        # Construct the URL manually to avoid encoding issues
+                        base_url = "https://lda.senate.gov/api/v1/filings/"
+                        param_strings = [f"{k}={quote(str(v))}" for k, v in params.items()]
+                        url = f"{base_url}?{'&'.join(param_strings)}"
+                        
+                        # Set up headers with API key if available
+                        headers = {}
+                        if api_key:
+                            headers['Authorization'] = f'Token {api_key}'
+                        
+                        response = await client.get(url, headers=headers)
+                        logger.info(f"📊 API Response Status: {response.status_code}")
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            total_count = data.get('count', 0)
+                            logger.info(f"📈 API returned {total_count} total records for {search_year} with query '{search_term}'")
+                            
+                            for filing in data.get('results', []):
                                 if len(results) >= 50:
                                     break
                                 result = parse_filing(filing, query)
                                 if result:
                                     results.append(result)
-                    
-                    await asyncio.sleep(1.0)  # Rate limiting for anonymous access
-                    
-                except httpx.RequestError as e:
-                    logger.error(f"HTTP error searching Senate LDA for year {search_year}: {e}")
-                    continue
-                except Exception as e:
-                    logger.error(f"Error parsing Senate LDA data for year {search_year}: {e}")
-                    continue
+                            
+                            if data.get('results'):
+                                logger.info(f"✅ Found {len(data.get('results', []))} results for '{search_term}' in {search_year}")
+                            
+                        elif response.status_code == 401:
+                            logger.warning(f"🔐 Authentication failed for Senate LDA API (401). API key may be invalid.")
+                            # Fall back to anonymous access for this search term
+                            url_anonymous = f"https://lda.senate.gov/api/v1/filings/?client_name={quote(search_term)}&filing_year={search_year}&page_size=25"
+                            anon_response = await client.get(url_anonymous)
+                            if anon_response.status_code == 200:
+                                data = anon_response.json()
+                                for filing in data.get('results', []):
+                                    if len(results) >= 50:
+                                        break
+                                    result = parse_filing(filing, query)
+                                    if result:
+                                        results.append(result)
+                            
+                        else:
+                            logger.warning(f"⚠️ API request failed with status {response.status_code}")
+                        
+                        await asyncio.sleep(base_delay)  # Rate limiting
+                     
+                    except httpx.RequestError as e:
+                        logger.error(f"🚨 HTTP error searching Senate LDA for '{search_term}' in {search_year}: {e}")
+                        continue
+                    except Exception as e:
+                        logger.error(f"🚨 Error parsing Senate LDA data for '{search_term}' in {search_year}: {e}")
+                        continue
         
         logger.info(f"Senate LDA search completed: {len(results)} results for '{query}'")
         return results
