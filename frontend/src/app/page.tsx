@@ -2,9 +2,48 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Calendar, Building, DollarSign, ExternalLink, Eye, FileText, TrendingUp } from 'lucide-react';
-import { InteractiveBarChart, TimelineChart, NetworkDiagram } from '@/components/InteractiveCharts';
-import type { ChartData, TimelineData } from '@/components/InteractiveCharts';
-import type { NetworkData } from '@/components/InteractiveCharts/NetworkDiagram';
+import InteractiveBarChart from '@/components/InteractiveBarChart';
+import TimelineChart from '@/components/TimelineChart';
+import NetworkDiagram from '@/components/NetworkDiagram';
+import DetailedResultView from '@/components/enhanced-results/DetailedResultView';
+import CheckbookStyleResults from '@/components/enhanced-search/CheckbookStyleResults';
+
+// Chart interfaces
+interface ChartData {
+  id: string;
+  name: string;
+  value: number;
+  category: string;
+  source: string;
+}
+
+interface TimelineData {
+  id: string;
+  date: string;
+  title: string;
+  description: string;
+  amount?: number;
+  source: string;
+  type: string;
+}
+
+interface NetworkNode {
+  id: string;
+  name: string;
+  type: string;
+  value?: number;
+}
+
+interface NetworkEdge {
+  source: string;
+  target: string;
+  weight: number;
+}
+
+interface NetworkData {
+  nodes: NetworkNode[];
+  edges: NetworkEdge[];
+}
 
 // Main search page for the Vetting Intelligence Search Hub
 // This will eventually replace pages/index.js
@@ -42,6 +81,7 @@ interface SearchFilters {
 const sourceConfig = {
   senate_lda: { name: 'Senate LDA (House & Senate Lobbying)', color: 'bg-red-100 text-red-800', icon: '🏛️' },
   checkbook: { name: 'NYC Contracts', color: 'bg-green-100 text-green-800', icon: '📋' },
+  dbnyc: { name: 'FEC Campaign Finance', color: 'bg-blue-100 text-blue-800', icon: '💰' },
   nys_ethics: { name: 'NY State', color: 'bg-yellow-100 text-yellow-800', icon: '🏛️' },
   nyc_lobbyist: { name: 'NYC Lobbyist', color: 'bg-orange-100 text-orange-800', icon: '🤝' }
 };
@@ -58,41 +98,8 @@ export default function VettingIntelligenceHub() {
   const [showFilters, setShowFilters] = useState(false);
   const [displayCount, setDisplayCount] = useState(15);
 
-  const searchData = async () => {
-    if (!query.trim()) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      const response = await fetch('http://127.0.0.1:8001/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: query.trim(),
-          year: filters.year || null,
-          jurisdiction: filters.jurisdiction || null
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Search failed');
-      }
-
-      const data: SearchResponse = await response.json();
-      setResults(data.results || []);
-      setTotalHits(data.total_hits || {});
-    } catch (err) {
-      setError('Failed to search. Please check your connection.');
-      console.error('Search error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Function to group NYC Lobbyist results by year
+  // Move this function definition before it's used
   const groupNYCResultsByYear = React.useCallback((results: SearchResult[]) => {
     const nycResults = results.filter(r => r.source === 'nyc_lobbyist');
     const otherResults = results.filter(r => r.source !== 'nyc_lobbyist');
@@ -135,6 +142,40 @@ export default function VettingIntelligenceHub() {
     return groupedResults;
   }, []);
 
+  const searchData = async () => {
+    if (!query.trim()) return;
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch('http://127.0.0.1:8001/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query.trim(),
+          year: filters.year || null,
+          jurisdiction: filters.jurisdiction || null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+
+      const data: SearchResponse = await response.json();
+      setResults(data.results || []);
+      setTotalHits(data.total_hits || {});
+    } catch (err) {
+      setError('Failed to search. Please check your connection.');
+      console.error('Search error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       searchData();
@@ -159,7 +200,7 @@ export default function VettingIntelligenceHub() {
   // Apply year grouping for NYC Lobbyist results
   const displayResults = React.useMemo(() => {
     return groupNYCResultsByYear(filteredResults);
-  }, [filteredResults, groupNYCResultsByYear]);
+  }, [filteredResults]);
 
   const ResultCard = ({ result, onClick }: { result: SearchResult; onClick: () => void }) => {
     const sourceInfo = sourceConfig[result.source as keyof typeof sourceConfig] || 
@@ -250,14 +291,25 @@ export default function VettingIntelligenceHub() {
         <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{result.title}</h3>
         <p className="text-gray-600 text-sm mb-3 line-clamp-3">{result.description}</p>
         
-        <div className="flex justify-between items-center text-xs text-gray-500">
-          <div className="flex gap-3">
-            {result.vendor && <span>Vendor: {result.vendor}</span>}
-            {result.agency && <span>Agency: {result.agency}</span>}
+        <div className="flex justify-between items-center">
+          <div className="flex gap-3 text-xs text-gray-500">
+            {result.vendor && <span>Vendor: {result.vendor.length > 30 ? `${result.vendor.substring(0, 30)}...` : result.vendor}</span>}
+            {result.agency && <span>Agency: {result.agency.length > 30 ? `${result.agency.substring(0, 30)}...` : result.agency}</span>}
           </div>
-          {result.url && (
-            <ExternalLink className="w-4 h-4" />
-          )}
+          <div className="flex items-center gap-2">
+            {result.url && (
+              <a href={result.url} target="_blank" rel="noopener noreferrer"
+                 className="text-blue-600 hover:text-blue-800 text-xs flex items-center gap-1"
+                 onClick={(e) => e.stopPropagation()}>
+                <ExternalLink className="w-3 h-3" />
+                Original
+              </a>
+            )}
+            <button className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center gap-1 hover:bg-blue-50 px-2 py-1 rounded">
+              <Eye className="w-3 h-3" />
+              Full Details
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -265,13 +317,21 @@ export default function VettingIntelligenceHub() {
 
   const AnalyticsView = () => {
     // Prepare data for interactive charts
-    const chartData: ChartData[] = Object.entries(totalHits).map(([source, count]) => ({
-      id: source,
-      name: sourceConfig[source as keyof typeof sourceConfig]?.name || source,
-      value: count,
-      category: 'source',
-      source: source
-    }));
+    const chartData: ChartData[] = Object.keys(totalHits).length > 0 
+      ? Object.entries(totalHits).map(([source, count]) => ({
+          id: source,
+          name: sourceConfig[source as keyof typeof sourceConfig]?.name || source,
+          value: count,
+          category: 'source',
+          source: source
+        }))
+      : [
+          { id: 'checkbook', name: 'NYC Contracts', value: 0, category: 'source', source: 'checkbook' },
+          { id: 'dbnyc', name: 'FEC Campaign Finance', value: 0, category: 'source', source: 'dbnyc' },
+          { id: 'senate_lda', name: 'Senate LDA', value: 0, category: 'source', source: 'senate_lda' },
+          { id: 'nys_ethics', name: 'NY State', value: 0, category: 'source', source: 'nys_ethics' },
+          { id: 'nyc_lobbyist', name: 'NYC Lobbyist', value: 0, category: 'source', source: 'nyc_lobbyist' }
+        ];
 
     const timelineData: TimelineData[] = results
       .filter(r => r.date)
@@ -287,8 +347,8 @@ export default function VettingIntelligenceHub() {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Create network data for entity relationships
-    const networkNodes: any[] = [];
-    const networkEdges: any[] = [];
+    const networkNodes: NetworkNode[] = [];
+    const networkEdges: NetworkEdge[] = [];
     const entities = new Set<string>();
     const agencies = new Set<string>();
 
@@ -299,62 +359,68 @@ export default function VettingIntelligenceHub() {
       
       // Add nodes for entities and agencies
       if (result.vendor && !networkNodes.find(n => n.id === result.vendor)) {
+        const totalAmount = results
+          .filter(r => r.vendor === result.vendor)
+          .reduce((sum, r) => {
+            if (typeof r.amount === 'number') return sum + r.amount;
+            if (r.amount) return sum + parseFloat(r.amount.replace(/[$,]/g, ''));
+            return sum;
+          }, 0);
+          
         networkNodes.push({
           id: result.vendor,
-          label: result.vendor,
-          type: 'entity' as 'entity',
-          size: 15,
-          metadata: {
-            totalAmount: results
-              .filter(r => r.vendor === result.vendor)
-              .reduce((sum, r) => {
-                if (typeof r.amount === 'number') return sum + r.amount;
-                if (r.amount) return sum + parseFloat(r.amount.replace(/[$,]/g, ''));
-                return sum;
-              }, 0),
-            recordCount: results.filter(r => r.vendor === result.vendor).length,
-            source: result.source
-          }
+          name: result.vendor,
+          type: 'vendor',
+          value: totalAmount
         });
       }
 
       if (result.agency && !networkNodes.find(n => n.id === result.agency)) {
+        const totalAmount = results
+          .filter(r => r.agency === result.agency)
+          .reduce((sum, r) => {
+            if (typeof r.amount === 'number') return sum + r.amount;
+            if (r.amount) return sum + parseFloat(r.amount.replace(/[$,]/g, ''));
+            return sum;
+          }, 0);
+          
         networkNodes.push({
           id: result.agency,
-          label: result.agency,
+          name: result.agency,
           type: 'agency',
-          size: 12,
-          metadata: {
-            recordCount: results.filter(r => r.agency === result.agency).length,
-            source: result.source
-          }
+          value: totalAmount > 0 ? totalAmount : results.filter(r => r.agency === result.agency).length
         });
       }
 
       // Create edges between vendors and agencies
       if (result.vendor && result.agency) {
-        const edgeId = `${result.vendor}-${result.agency}`;
-        if (!networkEdges.find(e => e.id === edgeId)) {
+        const existingEdge = networkEdges.find(e => 
+          (e.source === result.vendor && e.target === result.agency) ||
+          (e.source === result.agency && e.target === result.vendor)
+        );
+        
+        if (!existingEdge) {
           networkEdges.push({
-            id: edgeId,
-            from: result.vendor,
-            to: result.agency,
-            type: 'contract',
-            weight: 1,
-            metadata: {
-              amount: typeof result.amount === 'number' ? result.amount : 
-                     (result.amount ? parseFloat(result.amount.replace(/[$,]/g, '')) : undefined),
-              date: result.date,
-              source: result.source
-            }
+            source: result.vendor,
+            target: result.agency,
+            weight: 1
           });
+        } else {
+          existingEdge.weight += 1;
         }
       }
     });
 
     const networkData: NetworkData = {
-      nodes: networkNodes,
-      edges: networkEdges
+      nodes: networkNodes.length > 0 ? networkNodes : [
+        { id: 'sample-entity', name: 'Sample Entity', type: 'entity', value: 100 },
+        { id: 'sample-vendor', name: 'Sample Vendor', type: 'vendor', value: 50 },
+        { id: 'sample-agency', name: 'Sample Agency', type: 'agency', value: 25 }
+      ],
+      edges: networkEdges.length > 0 ? networkEdges : [
+        { source: 'sample-entity', target: 'sample-vendor', weight: 2 },
+        { source: 'sample-vendor', target: 'sample-agency', weight: 1 }
+      ]
     };
 
     return (
@@ -391,18 +457,18 @@ export default function VettingIntelligenceHub() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Bar Chart */}
           <div className="w-full min-h-[500px]">
-            <InteractiveBarChart data={chartData} title="Results by Source" height={450} formatType="number" />
+            <InteractiveBarChart data={chartData} onSelectionChange={(selection) => console.log('Chart selection:', selection)} />
           </div>
 
           {/* Timeline Chart */}
           <div className="w-full min-h-[500px]">
-            <TimelineChart data={timelineData} title="Timeline Analysis" height={450} />
+            <TimelineChart data={timelineData} onEventClick={(event) => console.log('Timeline event:', event)} />
           </div>
         </div>
 
         {/* Network Diagram */}
         <div className="w-full min-h-[600px]">
-          <NetworkDiagram data={networkData} />
+          <NetworkDiagram nodes={networkData.nodes} edges={networkData.edges} onNodeClick={(node) => console.log('Network node:', node)} />
         </div>
 
         {/* Detailed Statistics */}
@@ -501,82 +567,15 @@ export default function VettingIntelligenceHub() {
     <div className="space-y-6">
       <div className="flex items-center gap-4 mb-6">
         <button onClick={() => {setCurrentView('search'); setSelectedResult(null);}}
-                className="text-blue-600 hover:text-blue-800">
+                className="text-blue-600 hover:text-blue-800 flex items-center gap-2">
           ← Back to Results
         </button>
-        <h2 className="text-2xl font-bold text-gray-900">Record Details</h2>
       </div>
-
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-500">Title</label>
-                <p className="text-gray-900">{result.title}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-500">Source</label>
-                <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${sourceConfig[result.source as keyof typeof sourceConfig]?.color || 'bg-gray-100 text-gray-800'}`}>
-                  {sourceConfig[result.source as keyof typeof sourceConfig]?.name || result.source}
-                </span>
-              </div>
-              {result.date && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Date</label>
-                  <p className="text-gray-900">{new Date(result.date).toLocaleDateString()}</p>
-                </div>
-              )}
-              {result.amount && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Amount</label>
-                  <p className="text-gray-900 font-semibold text-green-600">{result.amount}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Additional Details</h3>
-            <div className="space-y-3">
-              {result.vendor && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Vendor/Entity</label>
-                  <p className="text-gray-900">{result.vendor}</p>
-                </div>
-              )}
-              {result.agency && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Agency</label>
-                  <p className="text-gray-900">{result.agency}</p>
-                </div>
-              )}
-              {result.record_type && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Record Type</label>
-                  <p className="text-gray-900">{result.record_type}</p>
-                </div>
-              )}
-              {result.url && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Source URL</label>
-                  <a href={result.url} target="_blank" rel="noopener noreferrer"
-                     className="text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                    <ExternalLink className="w-4 h-4" />
-                    View Original Record
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-4">Description</h3>
-          <p className="text-gray-700 leading-relaxed">{result.description}</p>
-        </div>
-      </div>
+      
+      <DetailedResultView 
+        result={result} 
+        onClose={() => {setCurrentView('search'); setSelectedResult(null);}}
+      />
     </div>
   );
 
@@ -727,49 +726,26 @@ export default function VettingIntelligenceHub() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Results */}
+            {/* Results - CheckbookNYC Style */}
             {displayResults.length > 0 && (
-              <>
-                <div className="flex justify-between items-center">
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Search Results ({displayResults.length})
-                  </h2>
-                  {displayResults.length > displayCount && (
-                    <button
-                      onClick={() => setDisplayCount(displayCount + 15)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Load More
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  {displayResults.slice(0, displayCount).map((result, index) => (
-                    <ResultCard
-                      key={index}
-                      result={result}
-                      onClick={() => {
-                        if (result.source !== 'nyc_lobbyist_year_header') {
-                          setSelectedResult(result);
-                          setCurrentView('details');
-                        }
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {displayResults.length > displayCount && (
-                  <div className="text-center">
-                    <button
-                      onClick={() => setDisplayCount(displayCount + 15)}
-                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                    >
-                      Load More Results
-                    </button>
-                  </div>
-                )}
-              </>
+              <CheckbookStyleResults 
+                results={displayResults.map(result => ({
+                  id: `${result.source}-${Math.random()}`,
+                  source: result.source,
+                  title: result.title,
+                  vendor: result.vendor,
+                  agency: result.agency,
+                  amount: typeof result.amount === 'string' 
+                    ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                    : result.amount,
+                  description: result.description,
+                  date: result.date,
+                  year: result.year ? parseInt(result.year) : undefined,
+                  url: result.url,
+                  raw_records: []
+                }))}
+                isLoading={loading}
+              />
             )}
 
             {/* No Results */}

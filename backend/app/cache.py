@@ -74,13 +74,21 @@ class CacheService:
             # Convert SearchResult objects to dictionaries for JSON serialization
             serializable_results = []
             for result in results:
-                if hasattr(result, 'model_dump'):
-                    serializable_results.append(result.model_dump())
-                elif isinstance(result, dict):
+                if isinstance(result, dict):
+                    # Already a dict, use directly
                     serializable_results.append(result)
+                elif hasattr(result, 'model_dump'):
+                    # Pydantic model with model_dump method
+                    serializable_results.append(result.model_dump())
+                elif hasattr(result, 'dict'):
+                    # Pydantic model with dict method (older versions)
+                    serializable_results.append(result.dict())
+                elif hasattr(result, '__dict__'):
+                    # Regular object with __dict__
+                    serializable_results.append(result.__dict__)
                 else:
-                    # Convert to dict if it's a different type
-                    serializable_results.append(result.__dict__ if hasattr(result, '__dict__') else str(result))
+                    # Convert to string as fallback
+                    serializable_results.append(str(result))
             
             cache_data = {
                 'total_hits': total_hits,
