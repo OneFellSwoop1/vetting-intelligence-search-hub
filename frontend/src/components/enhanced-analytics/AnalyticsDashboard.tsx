@@ -311,7 +311,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <CardContent className="p-6">
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                {activeChart === 'source' && (
+                {activeChart === 'source' ? (
                   <BarChart data={analyticsData.sourceData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
@@ -319,9 +319,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     <Tooltip content={<CustomTooltip />} />
                     <Bar dataKey="value" fill="#3B82F6" />
                   </BarChart>
-                )}
-                
-                {activeChart === 'timeline' && (
+                ) : activeChart === 'timeline' ? (
                   <AreaChart data={analyticsData.timelineData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
@@ -329,9 +327,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                     <Tooltip content={<CustomTooltip />} />
                     <Area type="monotone" dataKey="count" stackId="1" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.6} />
                   </AreaChart>
-                )}
-                
-                {activeChart === 'amount' && (
+                ) : (
                   <BarChart data={analyticsData.amountData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="range" />
