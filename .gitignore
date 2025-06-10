@@ -8,6 +8,11 @@
 .env.*
 !env.example
 
+# Process ID files and startup tracking
+.backend_pid
+.frontend_pid
+*.pid
+
 # Python
 __pycache__/
 *.py[cod]
