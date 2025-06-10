@@ -201,8 +201,11 @@ export default function VettingIntelligenceHub() {
 
   // Apply year grouping for NYC Lobbyist results
   const displayResults = React.useMemo(() => {
-    return groupNYCResultsByYear(filteredResults);
-  }, [filteredResults]);
+    if (typeof groupNYCResultsByYear === 'function') {
+      return groupNYCResultsByYear(filteredResults);
+    }
+    return filteredResults;
+  }, [filteredResults, groupNYCResultsByYear]);
 
   const ResultCard = ({ result, onClick }: { result: SearchResult; onClick: () => void }) => {
     const sourceInfo = sourceConfig[result.source as keyof typeof sourceConfig] || 

@@ -9,7 +9,7 @@ from app.schemas import (
     TimelineAnalysis, CompanyAnalysis
 )
 from app.adapters.enhanced_senate_lda import EnhancedSenateLDAAdapter
-from app.adapters.checkbook import search as search_checkbook
+from app.adapters.checkbook import search_checkbook
 from app.adapters.nyc_lobbyist import search_nyc_lobbyist
 
 logger = logging.getLogger(__name__)
