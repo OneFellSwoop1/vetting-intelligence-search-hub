@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.routers import search, correlation
+from app.routers import search, correlation, auth
 from app.websocket import websocket_endpoint
 
 # Load environment variables from environment.env file
@@ -40,6 +40,7 @@ app.add_middleware(
 # Include routers
 app.include_router(search.router)
 app.include_router(correlation.router)
+app.include_router(auth.router)
 
 # WebSocket endpoint for real-time search streaming
 @app.websocket("/ws/{client_id}")
@@ -54,6 +55,65 @@ try:
     logger.info("✅ Enhanced correlation analysis loaded successfully")
 except ImportError as e:
     logger.warning(f"⚠️ Enhanced correlation analysis not available: {e}")
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    logger.info("🚀 Starting Vetting Intelligence Search Hub API...")
+    
+    # Initialize database
+    try:
+        from app.database import db_manager, migrate_cache_to_db
+        db_initialized = await db_manager.initialize()
+        
+        if db_initialized:
+            logger.info("✅ Database connected and initialized")
+            
+            # Migrate cache to database if both are available
+            try:
+                await migrate_cache_to_db()
+            except Exception as e:
+                logger.warning(f"⚠️ Cache migration failed: {e}")
+        else:
+            logger.warning("⚠️ Database initialization failed - some features may be limited")
+    except Exception as e:
+        logger.warning(f"⚠️ Database setup failed: {e}")
+    
+    # Test Redis connection
+    try:
+        from app.cache import cache_service
+        if cache_service.redis_client:
+            cache_service.redis_client.ping()
+            logger.info("✅ Redis cache connected successfully")
+        else:
+            logger.warning("⚠️ Redis cache not available - caching disabled")
+    except Exception as e:
+        logger.warning(f"⚠️ Redis cache connection failed: {e}")
+    
+    # Initialize correlation analyzer if available
+    try:
+        from app.enhanced_correlation import EnhancedCorrelationAnalyzer
+        app.state.correlation_analyzer = EnhancedCorrelationAnalyzer()
+        logger.info("✅ Enhanced correlation analysis available")
+    except ImportError as e:
+        logger.warning(f"⚠️ Enhanced correlation analysis not available: {e}")
+        app.state.correlation_analyzer = None
+    
+    logger.info("🎯 API startup completed successfully")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on shutdown."""
+    logger.info("🛑 Shutting down Vetting Intelligence Search Hub API...")
+    
+    # Close database connections
+    try:
+        from app.database import db_manager
+        await db_manager.close()
+    except Exception as e:
+        logger.error(f"Error closing database: {e}")
+    
+    logger.info("👋 API shutdown completed")
 
 @app.get("/")
 def health_check():

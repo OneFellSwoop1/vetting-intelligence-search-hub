@@ -1,10 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import asyncio
 import logging
 
-# Import all adapters except dbnyc (removed) and house_lda (combined with senate_lda)
+# Import all adapters
 from ..adapters import checkbook as checkbook_adapter
 from ..adapters import nys_ethics as nys_ethics_adapter  
 from ..adapters import senate_lda as senate_lda_adapter
@@ -12,6 +12,7 @@ from ..adapters import nyc_lobbyist as nyc_lobbyist_adapter
 
 from ..schemas import SearchResult
 from ..cache import CacheService
+from ..user_management import UserProfile, check_user_rate_limit
 from fastapi import Query
 
 router = APIRouter()
@@ -93,7 +94,10 @@ def analyze_results(results: list) -> Dict[str, Any]:
     }
 
 @router.post("/search")
-async def search(request: SearchRequest):
+async def search(
+    request: SearchRequest,
+    user: UserProfile = Depends(check_user_rate_limit)
+):
     """
     Search all data sources in parallel and return harmonized results.
     Uses Redis caching for 24-hour result persistence.
@@ -117,7 +121,7 @@ async def search(request: SearchRequest):
     # Convert year to int if provided
     year_int = int(request.year) if request.year and request.year.isdigit() else None
     
-    # Define all search tasks
+    # Define all search tasks including restored adapters
     search_tasks = [
         ("checkbook", checkbook_adapter.search(request.query, year_int)),
         ("nys_ethics", nys_ethics_adapter.search(request.query, year_int)),

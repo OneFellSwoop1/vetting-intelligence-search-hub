@@ -65,6 +65,8 @@ async def search_checkbook(query: str, year: int = None) -> List[Dict[str, Any]]
                                 
                                 result = {
                                     'entity_name': item.get('vendor_name', item.get('vendor', 'Unknown Vendor')),
+                                    'vendor': item.get('vendor_name', item.get('vendor', 'Unknown Vendor')),
+                                    'title': item.get('short_title', item.get('purpose', item.get('description', 'No description available'))),
                                     'amount': amount_formatted,
                                     'date': item.get('start_date', item.get('issue_date', 'Unknown Date'))[:10] if item.get('start_date') or item.get('issue_date') else 'Unknown Date',
                                     'agency': item.get('agency_name', item.get('agency', 'Unknown Agency')),
