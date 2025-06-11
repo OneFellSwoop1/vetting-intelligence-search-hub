@@ -5,6 +5,7 @@ import os
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import xmltodict
+import json
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 
@@ -19,10 +20,20 @@ class CheckbookNYCService:
     def __init__(self):
         self.api_url = "https://www.checkbooknyc.com/api"
         self.app_token = os.getenv('NYC_CHECKBOOK_APP_TOKEN')
+        self.rate_limit = float(os.getenv('CHECKBOOK_RATE_LIMIT', '0.25'))
         
         # Setup Jinja2 templates
         template_dir = Path(__file__).parent.parent.parent / "templates" / "checkbook"
         self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
+        
+        # Setup caching if Redis is available
+        self.cache = None
+        try:
+            from ..cache import CacheService
+            self.cache = CacheService()
+            logger.info("Redis caching enabled for Checkbook NYC service")
+        except ImportError:
+            logger.info("Redis caching not available")
         
         if not self.app_token:
             logger.warning("NYC_CHECKBOOK_APP_TOKEN not found in environment variables")
@@ -60,11 +71,14 @@ class CheckbookNYCService:
         records = []
         
         try:
+            # Flatten OrderedDicts to plain dicts
+            flattened_data = json.loads(json.dumps(xml_data))
+            
             # Handle different response structures
-            if 'response' in xml_data:
-                data = xml_data['response']
+            if 'response' in flattened_data:
+                data = flattened_data['response']
             else:
-                data = xml_data
+                data = flattened_data
             
             # Extract records - could be under different keys
             record_keys = ['record', 'records', 'row', 'rows', 'data']
@@ -153,6 +167,15 @@ class CheckbookNYCService:
             logger.error(f"Error normalizing record: {e}")
             return None
     
+    def _get_cache_key(self, domain: str, fiscal_year: int = None, feed_id: str = None) -> str:
+        """Generate cache key for request"""
+        key_parts = [f"checkbook:{domain}"]
+        if fiscal_year:
+            key_parts.append(f"year:{fiscal_year}")
+        if feed_id:
+            key_parts.append(f"feed:{feed_id}")
+        return ":".join(key_parts)
+    
     async def fetch(self, 
                    domain: str,
                    fiscal_year: int = None,
@@ -160,7 +183,7 @@ class CheckbookNYCService:
                    records_from: int = 1,
                    max_records: int = 20000) -> List[Dict[str, Any]]:
         """
-        Fetch data from Checkbook NYC official XML API
+        Fetch data from Checkbook NYC official XML API with caching
         
         Args:
             domain: One of 'contracts', 'spending', 'revenue', 'data_feed'
@@ -169,6 +192,14 @@ class CheckbookNYCService:
             records_from: Starting record number for pagination
             max_records: Maximum records per request (up to 20,000)
         """
+        
+        # Check cache first if available
+        cache_key = self._get_cache_key(domain, fiscal_year, feed_id)
+        if self.cache and records_from == 1:  # Only cache from beginning
+            cached_result = self.cache.get(cache_key)
+            if cached_result:
+                logger.info(f"Returning cached data for {domain}")
+                return cached_result
         
         all_records = []
         current_from = records_from
@@ -189,9 +220,21 @@ class CheckbookNYCService:
                     if fiscal_year:
                         context['search_criteria']['fiscal_year'] = fiscal_year
                     
+                    # For data feeds, add feed_id as criteria
+                    if domain.lower() == 'data_feed' and feed_id:
+                        context['search_criteria']['feed_criteria'] = {
+                            'name': 'feed_id',
+                            'type': 'value', 
+                            'value': feed_id
+                        }
+                    
                     # Render XML request body
                     xml_body = self._render_xml_template(domain, **context)
                     logger.info(f"Requesting {domain} data from record {current_from}")
+                    
+                    # Rate limiting - be polite to API
+                    if current_from > 1:  # Don't delay first request
+                        await asyncio.sleep(self.rate_limit)
                     
                     # Make API request
                     response = await client.post(
@@ -234,6 +277,11 @@ class CheckbookNYCService:
                 
         except Exception as e:
             logger.error(f"Error fetching {domain} data: {e}")
+        
+        # Cache results if we have them and cache is available
+        if self.cache and all_records and records_from == 1:
+            self.cache.set(cache_key, all_records, ttl=86400)  # 24 hour cache
+            logger.info(f"Cached {len(all_records)} records for {domain}")
         
         logger.info(f"Completed {domain} fetch: {len(all_records)} total records")
         return all_records

@@ -3,6 +3,8 @@
   <type_of_data>Spending</type_of_data>
   <records_from>{{ records_from }}</records_from>
   <max_records>{{ max_records }}</max_records>
+  <status>{{ status | default('A') }}</status>
+  <category>{{ category | default('spending') }}</category>
   {% if search_criteria %}
   <search_criteria>
     {% if fiscal_year %}
@@ -10,6 +12,9 @@
     {% endif %}
     {% if vendor_name %}
     <vendor_name>{{ vendor_name }}</vendor_name>
+    {% endif %}
+    {% if payee_name %}
+    <payee_name>{{ payee_name }}</payee_name>
     {% endif %}
     {% if agency_name %}
     <agency_name>{{ agency_name }}</agency_name>

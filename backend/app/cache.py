@@ -5,26 +5,87 @@ import hashlib
 import time
 from typing import Optional, Any
 import logging
+from redis.exceptions import ConnectionError, RedisError
 
 
 logger = logging.getLogger(__name__)
 
 class CacheService:
+    """Redis-based caching service for the application"""
+    
     def __init__(self):
         self.redis_client = None
-        self._initialize_redis()
-    
-    def _initialize_redis(self):
-        """Initialize Redis connection with fallback if not available."""
+        self.enabled = False
+        
+        # Try to connect to Redis
+        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+        
         try:
-            redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
             self.redis_client = redis.from_url(redis_url, decode_responses=True)
             # Test connection
             self.redis_client.ping()
-            logger.info("Redis cache connected successfully")
-        except Exception as e:
-            logger.warning(f"Redis cache not available: {e}. Caching disabled.")
-            self.redis_client = None
+            self.enabled = True
+            logger.info(f"Redis cache connected: {redis_url}")
+        except (ConnectionError, RedisError) as e:
+            logger.warning(f"Redis cache not available: {e}")
+            self.enabled = False
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get value from cache"""
+        if not self.enabled:
+            return None
+            
+        try:
+            value = self.redis_client.get(key)
+            if value:
+                return json.loads(value)
+            return None
+        except (RedisError, json.JSONDecodeError) as e:
+            logger.warning(f"Cache get error for key {key}: {e}")
+            return None
+    
+    def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
+        """Set value in cache with TTL"""
+        if not self.enabled:
+            return False
+            
+        try:
+            serialized_value = json.dumps(value, default=str)
+            self.redis_client.setex(key, ttl, serialized_value)
+            return True
+        except (RedisError, TypeError) as e:
+            logger.warning(f"Cache set error for key {key}: {e}")
+            return False
+    
+    def delete(self, key: str) -> bool:
+        """Delete value from cache"""
+        if not self.enabled:
+            return False
+            
+        try:
+            self.redis_client.delete(key)
+            return True
+        except RedisError as e:
+            logger.warning(f"Cache delete error for key {key}: {e}")
+            return False
+    
+    def clear_pattern(self, pattern: str) -> int:
+        """Clear all keys matching pattern"""
+        if not self.enabled:
+            return 0
+            
+        try:
+            keys = self.redis_client.keys(pattern)
+            if keys:
+                return self.redis_client.delete(*keys)
+            return 0
+        except RedisError as e:
+            logger.warning(f"Cache clear pattern error for {pattern}: {e}")
+            return 0
+    
+    def is_available(self) -> bool:
+        """Check if cache is available"""
+        return self.enabled
     
     def _get_cache_key(self, query: str, year: Optional[str] = None, jurisdiction: Optional[str] = None) -> str:
         """Generate a consistent cache key for the search parameters."""
@@ -39,7 +100,7 @@ class CacheService:
     
     def get_cached_results(self, query: str, year: Optional[str] = None, jurisdiction: Optional[str] = None) -> Optional[dict]:
         """Retrieve cached search results if available."""
-        if not self.redis_client:
+        if not self.enabled:
             return None
         
         try:
@@ -65,7 +126,7 @@ class CacheService:
     def cache_results(self, query: str, total_hits: dict, results: list, 
                      year: Optional[str] = None, jurisdiction: Optional[str] = None):
         """Cache search results for 24 hours with improved error handling."""
-        if not self.redis_client:
+        if not self.enabled:
             return
         
         try:
@@ -181,7 +242,7 @@ class CacheService:
     
     def get_cached_analysis(self, cache_key: str) -> Optional[dict]:
         """Retrieve cached correlation analysis results."""
-        if not self.redis_client:
+        if not self.enabled:
             return None
         
         try:
@@ -200,7 +261,7 @@ class CacheService:
     
     def cache_analysis(self, cache_key: str, analysis_data: Any, ttl_hours: int = 48):
         """Cache correlation analysis results for extended period (default 48 hours)."""
-        if not self.redis_client:
+        if not self.enabled:
             return
         
         try:
@@ -232,7 +293,7 @@ class CacheService:
     
     def cache_company_data(self, company_name: str, data_type: str, data: Any, ttl_hours: int = 24):
         """Cache company-specific data with flexible TTL."""
-        if not self.redis_client:
+        if not self.enabled:
             return
         
         try:
@@ -260,7 +321,7 @@ class CacheService:
     
     def get_cached_company_data(self, company_name: str, data_type: str) -> Optional[Any]:
         """Retrieve cached company-specific data."""
-        if not self.redis_client:
+        if not self.enabled:
             return None
         
         try:
@@ -281,7 +342,7 @@ class CacheService:
     
     def clear_cache(self, pattern: str = "search:*"):
         """Clear cached results matching the pattern."""
-        if not self.redis_client:
+        if not self.enabled:
             return 0
         
         try:
@@ -298,7 +359,7 @@ class CacheService:
     
     def clear_company_cache(self, company_name: str):
         """Clear all cached data for a specific company."""
-        if not self.redis_client:
+        if not self.enabled:
             return 0
         
         try:
@@ -316,7 +377,7 @@ class CacheService:
     
     def get_cache_stats(self) -> dict:
         """Get enhanced cache statistics including new cache types."""
-        if not self.redis_client:
+        if not self.enabled:
             return {'status': 'disabled', 'keys': 0, 'memory_usage': 'N/A'}
         
         try:

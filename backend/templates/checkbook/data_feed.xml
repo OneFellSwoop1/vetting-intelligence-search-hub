@@ -3,16 +3,40 @@
   <type_of_data>{{ feed_type | default('Data-Feed') }}</type_of_data>
   <records_from>{{ records_from }}</records_from>
   <max_records>{{ max_records }}</max_records>
+  <status>{{ status | default('A') }}</status>
+  <category>{{ category | default('data_feed') }}</category>
   {% if feed_id %}
-  <feed_id>{{ feed_id }}</feed_id>
-  {% endif %}
-  {% if search_criteria %}
+  <search_criteria>
+    <criteria>
+      <name>feed_id</name>
+      <type>value</type>
+      <value>{{ feed_id }}</value>
+    </criteria>
+  </search_criteria>
+  {% elif search_criteria %}
   <search_criteria>
     {% if fiscal_year %}
-    <fiscal_year>{{ fiscal_year }}</fiscal_year>
+    <criteria>
+      <name>fiscal_year</name>
+      <type>value</type>
+      <value>{{ fiscal_year }}</value>
+    </criteria>
+    {% endif %}
+    {% if feed_criteria %}
+    <criteria>
+      <name>{{ feed_criteria.name }}</name>
+      <type>{{ feed_criteria.type }}</type>
+      <value>{{ feed_criteria.value }}</value>
+    </criteria>
     {% endif %}
     {% for key, value in search_criteria.items() %}
-    <{{ key }}>{{ value }}</{{ key }}>
+    {% if key not in ['fiscal_year', 'feed_criteria'] %}
+    <criteria>
+      <name>{{ key }}</name>
+      <type>value</type>
+      <value>{{ value }}</value>
+    </criteria>
+    {% endif %}
     {% endfor %}
   </search_criteria>
   {% endif %}

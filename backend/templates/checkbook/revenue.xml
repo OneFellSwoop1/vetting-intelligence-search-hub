@@ -3,6 +3,8 @@
   <type_of_data>Revenue</type_of_data>
   <records_from>{{ records_from }}</records_from>
   <max_records>{{ max_records }}</max_records>
+  <status>{{ status | default('A') }}</status>
+  <category>{{ category | default('revenue') }}</category>
   {% if search_criteria %}
   <search_criteria>
     {% if fiscal_year %}
@@ -11,8 +13,8 @@
     {% if agency_name %}
     <agency_name>{{ agency_name }}</agency_name>
     {% endif %}
-    {% if revenue_source %}
-    <revenue_source>{{ revenue_source }}</revenue_source>
+    {% if budget_code %}
+    <budget_code>{{ budget_code }}</budget_code>
     {% endif %}
   </search_criteria>
   {% endif %}
