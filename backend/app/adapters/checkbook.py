@@ -65,12 +65,12 @@ class CheckbookNYCAdapter:
         else:
             logger.warning("No API Key ID or Secret found - using anonymous access")
         
-        # Add app token if available and valid
-        if self.app_token and self.app_token != "2UYrUskVvUcZM1VR5e06dvfV":
+        # Add app token if available
+        if self.app_token:
             headers['X-App-Token'] = self.app_token
             logger.info("Using App Token for NYC Open Data")
-        elif self.app_token:
-            logger.warning("Skipping invalid App Token")
+        else:
+            logger.info("No App Token configured - using basic authentication only")
             
         return headers
         
@@ -122,8 +122,8 @@ class CheckbookNYCAdapter:
                             "$where": where_clause
                         }
                         
-                        # Add app token to params if available and valid
-                        if self.app_token and self.app_token != "2UYrUskVvUcZM1VR5e06dvfV":
+                        # Add app token to params if available
+                        if self.app_token:
                             params["$$app_token"] = self.app_token
                         
                         response = await client.get(url, params=params)

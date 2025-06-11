@@ -490,7 +490,7 @@ The application uses Socrata API for NYC Checkbook data:
 # NYC Open Data / Socrata API Credentials (for NYC Checkbook data)
 SOCRATA_API_KEY_ID=90d81emkbs10ht4iy25rpqs8u
 SOCRATA_API_KEY_SECRET=4pajtcdkz6wisx6nx1mpayntogwxtzdie3944au2u2nvkeskvv
-# SOCRATA_APP_TOKEN=2UYrUskVvUcZM1VR5e06dvfV  # Invalid - do not use
+SOCRATA_APP_TOKEN=XF40HzCEpiKz98H9M8N2TZ7s9
 ```
 
 **Important Notes:**
