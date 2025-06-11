@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<request>
+  <type_of_data>{{ feed_type | default('Data-Feed') }}</type_of_data>
+  <records_from>{{ records_from }}</records_from>
+  <max_records>{{ max_records }}</max_records>
+  {% if feed_id %}
+  <feed_id>{{ feed_id }}</feed_id>
+  {% endif %}
+  {% if search_criteria %}
+  <search_criteria>
+    {% if fiscal_year %}
+    <fiscal_year>{{ fiscal_year }}</fiscal_year>
+    {% endif %}
+    {% for key, value in search_criteria.items() %}
+    <{{ key }}>{{ value }}</{{ key }}>
+    {% endfor %}
+  </search_criteria>
+  {% endif %}
+</request> 

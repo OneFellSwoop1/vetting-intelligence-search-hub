@@ -1,0 +1,28 @@
+{
+  "CURSOR_TERMINAL_FIX": {
+    "problem": "Terminal process failed to launch - posix_spawn failed",
+    "cause": "Invalid or missing terminal configuration",
+    "required_settings": {
+      "terminal.integrated.defaultProfile.osx": "zsh",
+      "terminal.integrated.profiles.osx": {
+        "zsh": {
+          "path": "/bin/zsh",
+          "args": []
+        },
+        "bash": {
+          "path": "/bin/bash", 
+          "args": []
+        }
+      }
+    },
+    "settings_to_remove": [
+      "terminal.integrated.shell.osx",
+      "terminal.integrated.shellArgs.osx"
+    ],
+    "additional_settings": {
+      "terminal.integrated.inheritEnv": true,
+      "terminal.integrated.cwd": "",
+      "terminal.integrated.windowsEnableConpty": null
+    }
+  }
+} 

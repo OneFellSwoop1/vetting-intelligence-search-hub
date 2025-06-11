@@ -7,6 +7,9 @@ python-dotenv==1.0.1
 pytest==8.2.0
 pytest-asyncio==0.23.6
 beautifulsoup4==4.12.3
+# XML processing and templating dependencies
+xmltodict==0.13.0
+jinja2==3.1.4
 # Enhanced analysis dependencies
 pandas==2.2.2
 fuzzywuzzy==0.18.0

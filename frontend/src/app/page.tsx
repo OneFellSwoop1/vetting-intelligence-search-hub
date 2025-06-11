@@ -96,7 +96,7 @@ export default function VettingIntelligenceHub() {
   const [totalHits, setTotalHits] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [currentView, setCurrentView] = useState<'search' | 'analytics' | 'details'>('search');
+  const [currentView, setCurrentView] = useState<'search' | 'analytics' | 'details'>('analytics');
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -429,32 +429,131 @@ export default function VettingIntelligenceHub() {
 
     return (
       <div className="space-y-8 w-full">
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <TrendingUp className="w-6 h-6" />
-          Interactive Analytics Dashboard
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <TrendingUp className="w-6 h-6" />
+            {query ? `Comprehensive Profile: ${query}` : 'Interactive Analytics Dashboard'}
+          </h2>
+          {query && (
+            <div className="text-sm text-gray-600">
+              Multi-jurisdictional search across {Object.keys(totalHits).length} data sources
+            </div>
+          )}
+        </div>
         
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Object.entries(totalHits).map(([source, count]) => {
-            const sourceInfo = sourceConfig[source as keyof typeof sourceConfig] || 
-                             { name: source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
-            return (
-              <div key={source} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${sourceInfo.color}`}>
-                      {sourceInfo.icon} {sourceInfo.name}
-                    </span>
-                  </div>
-                  <span className="text-2xl font-bold text-gray-900">{count}</span>
-                </div>
-                <div className="mt-2 text-sm text-gray-600">
-                  {results.length > 0 ? ((count / results.length) * 100).toFixed(1) : 0}% of total
-                </div>
+        {/* Executive Summary for Company Profile */}
+        {query && results.length > 0 && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-100 border border-blue-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-blue-900 mb-4">Executive Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-900">{results.length}</div>
+                <div className="text-sm text-blue-700">Total Records Found</div>
               </div>
-            );
-          })}
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-700">
+                  {(() => {
+                    const totalAmount = results.reduce((sum, r) => {
+                      if (typeof r.amount === 'number') return sum + r.amount;
+                      if (r.amount) return sum + parseFloat(r.amount.replace(/[$,]/g, ''));
+                      return sum;
+                    }, 0);
+                    return totalAmount >= 1000000 ? `$${(totalAmount / 1000000).toFixed(1)}M` : 
+                           totalAmount >= 1000 ? `$${(totalAmount / 1000).toFixed(0)}K` : 
+                           `$${totalAmount.toLocaleString()}`;
+                  })()}
+                </div>
+                <div className="text-sm text-blue-700">Total Financial Activity</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-700">
+                  {(() => {
+                    const years = results.filter(r => r.date).map(r => new Date(r.date!).getFullYear());
+                    const minYear = Math.min(...years);
+                    const maxYear = Math.max(...years);
+                    return years.length > 0 ? `${maxYear - minYear + 1}` : '0';
+                  })()}
+                </div>
+                <div className="text-sm text-blue-700">Years of Activity</div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Activity Categories */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Lobbying Activities */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              🏛️ Lobbying & Political Activities
+            </h3>
+            <div className="space-y-3">
+              {['senate_lda', 'nys_ethics', 'nyc_lobbyist'].map(source => {
+                const count = totalHits[source] || 0;
+                const sourceInfo = sourceConfig[source as keyof typeof sourceConfig];
+                if (!sourceInfo) return null;
+                return (
+                  <div key={source} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{sourceInfo.icon}</span>
+                      <div>
+                        <div className="font-medium text-gray-900">{sourceInfo.name}</div>
+                        <div className="text-sm text-gray-600">
+                          {count > 0 ? `${((count / results.length) * 100).toFixed(1)}% of records` : 'No records found'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-xl font-bold text-blue-600">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Financial Activities */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              💰 Financial & Contract Activities
+            </h3>
+            <div className="space-y-3">
+              {['checkbook', 'dbnyc'].map(source => {
+                const count = totalHits[source] || 0;
+                const sourceInfo = sourceConfig[source as keyof typeof sourceConfig];
+                if (!sourceInfo) return null;
+                
+                // Calculate total amount for this source
+                const totalAmount = results.filter(r => r.source === source).reduce((sum, r) => {
+                  if (typeof r.amount === 'number') return sum + r.amount;
+                  if (r.amount) return sum + parseFloat(r.amount.replace(/[$,]/g, ''));
+                  return sum;
+                }, 0);
+                
+                const formattedAmount = totalAmount >= 1000000 ? `$${(totalAmount / 1000000).toFixed(1)}M` : 
+                                      totalAmount >= 1000 ? `$${(totalAmount / 1000).toFixed(0)}K` : 
+                                      totalAmount > 0 ? `$${totalAmount.toLocaleString()}` : '';
+                
+                return (
+                  <div key={source} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{sourceInfo.icon}</span>
+                      <div>
+                        <div className="font-medium text-gray-900">{sourceInfo.name}</div>
+                        <div className="text-sm text-gray-600">
+                          {count > 0 ? (
+                            <>
+                              {count} records
+                              {formattedAmount && <span className="text-green-600 ml-2">• {formattedAmount}</span>}
+                            </>
+                          ) : 'No records found'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-xl font-bold text-green-600">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Interactive Charts Grid */}
