@@ -14,11 +14,9 @@ export interface VetRecord {
 }
 
 export type DataSource = 
-  | "checkbook" 
-  | "dbnyc"
-  | "nys_ethics" 
-  | "senate_lda" 
-  | "house_lda" 
+    | "checkbook"
+  | "nys_ethics"
+  | "senate_lda"
   | "nyc_lobbyist";
 
 export type Jurisdiction = "NYC" | "NYS" | "Federal";

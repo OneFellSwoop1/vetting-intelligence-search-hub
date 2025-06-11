@@ -7,6 +7,8 @@ import TimelineChart from '@/components/TimelineChart';
 import NetworkDiagram from '@/components/NetworkDiagram';
 import DetailedResultView from '@/components/enhanced-results/DetailedResultView';
 import CheckbookStyleResults from '@/components/enhanced-search/CheckbookStyleResults';
+import NYCLobbyistStyleResults from '@/components/enhanced-search/NYCLobbyistStyleResults';
+import CheckbookNYCStyleResults from '@/components/enhanced-search/CheckbookNYCStyleResults';
 
 // Chart interfaces
 interface ChartData {
@@ -100,8 +102,8 @@ export default function VettingIntelligenceHub() {
   const [showFilters, setShowFilters] = useState(false);
   const [displayCount, setDisplayCount] = useState(15);
 
-  // Helper function to group NYC Lobbyist results by year
-  const groupNYCResultsByYear = React.useCallback((results: SearchResult[]): SearchResult[] => {
+  // Group NYC Lobbyist results by year for better organization
+  const groupNYCResultsByYear = React.useCallback((results: SearchResult[]) => {
     const nycResults = results.filter(r => r.source === 'nyc_lobbyist');
     const otherResults = results.filter(r => r.source !== 'nyc_lobbyist');
     
@@ -201,10 +203,7 @@ export default function VettingIntelligenceHub() {
 
   // Apply year grouping for NYC Lobbyist results
   const displayResults = React.useMemo(() => {
-    if (typeof groupNYCResultsByYear === 'function') {
-      return groupNYCResultsByYear(filteredResults);
-    }
-    return filteredResults;
+    return groupNYCResultsByYear(filteredResults);
   }, [filteredResults, groupNYCResultsByYear]);
 
   const ResultCard = ({ result, onClick }: { result: SearchResult; onClick: () => void }) => {
@@ -597,19 +596,33 @@ export default function VettingIntelligenceHub() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            🔍 Vetting Intelligence Search Hub
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Comprehensive search across government data sources including lobbying records, 
-            campaign finance, federal spending, and public contracts
-          </p>
+        {/* Header - Government Style */}
+        <div className="bg-white border border-gray-300 rounded-lg p-6 mb-8 shadow-sm">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Search className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Vetting Intelligence Search Hub
+              </h1>
+            </div>
+            <p className="text-lg text-gray-600 max-w-4xl mx-auto mb-4">
+              Comprehensive search across government transparency data sources including lobbying records, 
+              campaign finance, federal spending, and public contracts
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 text-sm text-gray-500">
+              <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full">Federal Lobbying (LDA)</span>
+              <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full">NYC Contracts</span>
+              <span className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full">Campaign Finance</span>
+              <span className="px-3 py-1 bg-orange-50 text-orange-700 rounded-full">NY State Ethics</span>
+              <span className="px-3 py-1 bg-cyan-50 text-cyan-700 rounded-full">NYC Lobbying</span>
+            </div>
+          </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+        {/* Search Bar - Government Style */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-300 p-6 mb-8">
           <div className="flex gap-4 mb-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -731,9 +744,9 @@ export default function VettingIntelligenceHub() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Results - CheckbookNYC Style */}
-            {displayResults.length > 0 && (
-              <CheckbookStyleResults 
+            {/* CheckbookNYC-Style Results for Contract Data */}
+            {displayResults.some(r => r.source === 'checkbook') && (
+              <CheckbookNYCStyleResults 
                 results={displayResults.map(result => ({
                   id: `${result.source}-${Math.random()}`,
                   source: result.source,
@@ -747,7 +760,36 @@ export default function VettingIntelligenceHub() {
                   date: result.date,
                   year: result.year ? parseInt(result.year) : undefined,
                   url: result.url,
-                  raw_records: []
+                  raw_records: [],
+                  client_count: result.client_count,
+                  registration_count: result.registration_count,
+                  record_type: result.record_type
+                }))}
+                searchQuery={query}
+                isLoading={loading}
+              />
+            )}
+            
+            {/* General Results - NYC Lobbying Style for All Data */}
+            {displayResults.length > 0 && (
+              <NYCLobbyistStyleResults 
+                results={displayResults.map(result => ({
+                  id: `${result.source}-${Math.random()}`,
+                  source: result.source,
+                  title: result.title,
+                  vendor: result.vendor,
+                  agency: result.agency,
+                  amount: typeof result.amount === 'string' 
+                    ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                    : result.amount,
+                  description: result.description,
+                  date: result.date,
+                  year: result.year ? parseInt(result.year) : undefined,
+                  url: result.url,
+                  raw_records: [],
+                  client_count: result.client_count,
+                  registration_count: result.registration_count,
+                  record_type: result.record_type
                 }))}
                 isLoading={loading}
               />

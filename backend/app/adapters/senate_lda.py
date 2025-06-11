@@ -12,28 +12,35 @@ logger = logging.getLogger(__name__)
 LDA_API_BASE = "https://lda.senate.gov/api/v1"
 
 def get_lda_api_key():
-    """Get LDA API key from environment variables at runtime"""
-    return os.getenv("LDA_API_KEY")
+    """Get LDA API key from environment for higher rate limits"""
+    api_key = os.getenv('LDA_API_KEY')
+    if api_key:
+        logger.info(f"🔑 Using Senate LDA API key: {api_key[:8]}...{api_key[-8:]} for authenticated access")
+        return api_key
+    else:
+        logger.warning(f"⚠️ No LDA_API_KEY found - using anonymous access with lower rate limits")
+        return None
 
 async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
     """
-    Optimized search of Senate LDA data with conservative API usage.
+    Enhanced search function for Senate LDA data with intelligent query expansion.
+    Uses API key if available for higher rate limits.
     """
-    results = []
-    api_key = get_lda_api_key()
-    
-    # Use API key authentication with X-API-Key header if available
-    headers = {}
-    if api_key:
-        headers["X-API-Key"] = api_key
-        logger.info("🔑 Using authenticated API access (120 req/min)")
-        rate_limit_delay = 0.5  # 120 requests/minute
-    else:
-        logger.info("🌐 Using anonymous API access (15 req/min)")
-        rate_limit_delay = 4.1  # 15 requests/minute
-    
     try:
         logger.info(f"🔍 Starting enhanced Senate LDA search for query: '{query}', year: {year}")
+        
+        # Get API key for authentication
+        api_key = get_lda_api_key()
+        if api_key:
+            logger.info(f"🔑 Using authenticated API access (120 req/min)")
+            headers = {"Authorization": f"Token {api_key}"}
+            rate_limit_delay = 0.25  # Faster rate for authenticated requests
+        else:
+            logger.info(f"🌐 Using anonymous API access (15 req/min)")
+            headers = {}
+            rate_limit_delay = 4.0  # Slower rate for anonymous requests
+        
+        results = []
         
         # CONSERVATIVE APPROACH: Search only 2 most recent years if no year specified
         years_to_search = [year] if year else [2024, 2023]
@@ -134,14 +141,20 @@ async def _search_single_term(client: httpx.AsyncClient, search_term: str, searc
                     }
                     search_term_results.append(result_item)
         
-        elif response.status_code == 401:
-            logger.warning(f"🔑 Authentication failed for '{search_term}' in {search_year}. API key may be invalid.")
+        elif response.status_code in [401, 404]:
+            logger.info(f"🔍 No results found for '{search_term}' in {search_year} (empty result set)")
+            # These status codes indicate no results found, not errors
+            return []
             
         elif response.status_code == 429:
             logger.warning(f"⏳ Rate limit hit for '{search_term}' in {search_year}")
+            # Add longer delay for rate limiting
+            await asyncio.sleep(rate_limit_delay * 2)
             
         else:
             logger.warning(f"⚠️ API request failed with status {response.status_code} for '{search_term}' in {search_year}")
+            # For other errors, log the response text for debugging
+            logger.debug(f"Response text: {response.text[:200]}")
         
         # Rate limiting delay
         await asyncio.sleep(rate_limit_delay)

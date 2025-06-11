@@ -64,7 +64,7 @@ class CacheService:
     
     def cache_results(self, query: str, total_hits: dict, results: list, 
                      year: Optional[str] = None, jurisdiction: Optional[str] = None):
-        """Cache search results for 24 hours."""
+        """Cache search results for 24 hours with improved error handling."""
         if not self.redis_client:
             return
         
@@ -75,38 +75,87 @@ class CacheService:
             serializable_results = []
             for result in results:
                 try:
+                    # First check if it's already a dict (most common case)
                     if isinstance(result, dict):
                         # Already a dict, use directly
                         serializable_results.append(result)
-                    elif hasattr(result, 'model_dump'):
-                        # Pydantic model with model_dump method
+                    # Check for Pydantic model with model_dump method
+                    elif hasattr(result, 'model_dump') and callable(getattr(result, 'model_dump', None)):
                         serializable_results.append(result.model_dump())
-                    elif hasattr(result, 'dict'):
-                        # Pydantic model with dict method (older versions)
+                    # Check for older Pydantic model with dict method
+                    elif hasattr(result, 'dict') and callable(getattr(result, 'dict', None)):
                         serializable_results.append(result.dict())
+                    # Check for regular object with __dict__
                     elif hasattr(result, '__dict__'):
-                        # Regular object with __dict__
-                        serializable_results.append(result.__dict__)
+                        result_dict = {}
+                        for key, value in result.__dict__.items():
+                            if not key.startswith('_'):  # Skip private attributes
+                                try:
+                                    json.dumps(value)  # Test if serializable
+                                    result_dict[key] = value
+                                except (TypeError, ValueError):
+                                    result_dict[key] = str(value)
+                        serializable_results.append(result_dict)
                     else:
                         # Convert to string as fallback
-                        serializable_results.append(str(result))
-                except Exception as e:
-                    logger.warning(f"Error serializing result for cache: {e}, using fallback serialization")
-                    # Fallback: try to convert to dict or string
+                        serializable_results.append({
+                            'data': str(result), 
+                            'type': str(type(result)),
+                            'cached_as_string': True
+                        })
+                        
+                except Exception as serialize_error:
+                    logger.warning(f"Serialization error for result: {serialize_error}")
+                    # Create a safe fallback representation
                     try:
-                        if hasattr(result, '__dict__'):
-                            serializable_results.append(result.__dict__)
-                        else:
-                            serializable_results.append(str(result))
-                    except:
-                        # Ultimate fallback
-                        serializable_results.append({'error': 'Failed to serialize result'})
+                        safe_result = {
+                            'title': getattr(result, 'title', getattr(result, 'entity_name', str(result))),
+                            'source': getattr(result, 'source', 'unknown'),
+                            'amount': getattr(result, 'amount', getattr(result, 'value', None)),
+                            'serialization_error': True,
+                            'error_message': str(serialize_error)
+                        }
+                        serializable_results.append(safe_result)
+                    except Exception:
+                        # Last resort - minimal safe object
+                        serializable_results.append({
+                            'data': 'serialization_failed',
+                            'error': True
+                        })
+            
+            # Ensure total_hits is also serializable
+            if isinstance(total_hits, dict):
+                serializable_hits = total_hits
+            else:
+                try:
+                    # Try to convert to dict if it's an object
+                    if hasattr(total_hits, 'model_dump'):
+                        serializable_hits = total_hits.model_dump()
+                    elif hasattr(total_hits, 'dict'):
+                        serializable_hits = total_hits.dict()
+                    elif hasattr(total_hits, '__dict__'):
+                        serializable_hits = total_hits.__dict__
+                    else:
+                        serializable_hits = {'total': str(total_hits)}
+                except Exception:
+                    serializable_hits = {'total': str(total_hits)}
             
             cache_data = {
-                'total_hits': total_hits,
+                'total_hits': serializable_hits,
                 'results': serializable_results,
-                'cached_at': json.dumps({}, default=str)  # For debugging
+                'cached_at': time.time(),
+                'query': query,
+                'year': year,
+                'jurisdiction': jurisdiction,
+                'result_count': len(serializable_results)
             }
+            
+            # Test serialization before caching
+            try:
+                json.dumps(cache_data, default=str)
+            except Exception as json_error:
+                logger.error(f"Cache data not JSON serializable: {json_error}")
+                return
             
             # Cache for 24 hours (86400 seconds)
             cache_ttl = 24 * 60 * 60
@@ -117,10 +166,18 @@ class CacheService:
                 json.dumps(cache_data, default=str)
             )
             
-            logger.info(f"Cached {len(results)} results for query: '{query}' (key: {cache_key}, TTL: {cache_ttl}s)")
+            logger.info(f"Successfully cached {len(serializable_results)} results for query: '{query}' (key: {cache_key})")
         
         except Exception as e:
-            logger.error(f"Error caching results: {e}")
+            logger.error(f"Error caching results for query '{query}': {e}")
+            # Log the problematic data for debugging
+            logger.error(f"Debug - results type: {type(results)}")
+            if results:
+                logger.error(f"Debug - first result type: {type(results[0])}")
+                logger.error(f"Debug - first result: {results[0]}")
+            logger.error(f"Debug - total_hits type: {type(total_hits)}")
+            logger.error(f"Debug - total_hits: {total_hits}")
+            # Don't raise exception to avoid breaking search functionality
     
     def get_cached_analysis(self, cache_key: str) -> Optional[dict]:
         """Retrieve cached correlation analysis results."""

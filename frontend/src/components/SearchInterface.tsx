@@ -49,7 +49,7 @@ const SearchInterface: React.FC<SearchInterfaceProps> = ({
 
     { id: 'nys_ethics', name: 'NY State Ethics', icon: '⚖️' },
     { id: 'senate_lda', name: 'Senate LDA', icon: '🏛️' },
-    { id: 'house_lda', name: 'House LDA', icon: '🏛️' },
+
     { id: 'nyc_lobbyist', name: 'NYC Lobbyist', icon: '🏢' }
   ];
 
