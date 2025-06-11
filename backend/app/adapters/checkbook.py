@@ -62,11 +62,15 @@ class CheckbookNYCAdapter:
             encoded_credentials = base64.b64encode(credentials.encode()).decode()
             headers['Authorization'] = f'Basic {encoded_credentials}'
             logger.info("Using OAuth authentication for NYC Open Data")
+        else:
+            logger.warning("No API Key ID or Secret found - using anonymous access")
         
-        # Add app token if available
-        if self.app_token:
+        # Add app token if available and valid
+        if self.app_token and self.app_token != "2UYrUskVvUcZM1VR5e06dvfV":
             headers['X-App-Token'] = self.app_token
             logger.info("Using App Token for NYC Open Data")
+        elif self.app_token:
+            logger.warning("Skipping invalid App Token")
             
         return headers
         
@@ -118,8 +122,8 @@ class CheckbookNYCAdapter:
                             "$where": where_clause
                         }
                         
-                        # Add app token to params if available
-                        if self.app_token:
+                        # Add app token to params if available and valid
+                        if self.app_token and self.app_token != "2UYrUskVvUcZM1VR5e06dvfV":
                             params["$$app_token"] = self.app_token
                         
                         response = await client.get(url, params=params)

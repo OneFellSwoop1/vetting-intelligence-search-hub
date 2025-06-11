@@ -1,6 +1,6 @@
 # 🔍 Vetting Intelligence Search Hub
 
-> A comprehensive platform for searching and analyzing government contracts, lobbying activities, and political financial data across multiple NYC and federal sources.
+> A comprehensive platform for researching business entities through multiple government data sources including federal lobbying records, NYC Checkbook financial data, and state/local disclosures.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -129,8 +129,6 @@ Copy `env.example` to `.env` and configure:
 ```env
 # Socrata API (for NYC data)
 SOCRATA_APP_TOKEN=your_socrata_token_here
-
-
 
 # Optional: Senate LDA API (for higher rate limits)
 LDA_API_KEY=your_senate_lda_api_key_here
@@ -282,4 +280,414 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for government transparency and accountability** 
+**Made with ❤️ for government transparency and accountability**
+
+## 🔍 Data Sources
+
+### NYC Checkbook (Socrata API)
+Access to New York City's financial data through the NYC Open Data / Socrata API:
+- **Contracts**: Active contracts, MWBE contracts, modifications
+- **Spending**: Payroll, financial transactions, capital commitments  
+- **Revenue**: Budget data, tax revenue, property tax, collections
+- **Budget**: Expense budget, summary, modifications
+
+**API Endpoint**: `https://data.cityofnewyork.us/resource`
+**Authentication**: Socrata API Key ID + Secret + App Token
+
+### Federal Lobbying Data
+- **Senate LDA**: Lobbying Disclosure Act filings
+- **House LDA**: House lobbying registrations
+
+### State & Local Data
+- **NYS Ethics**: Joint Commission on Public Ethics filings
+- **NYC Lobbyist**: New York City lobbyist registrations
+
+## 🛠 API Usage
+
+### NYC Checkbook (Socrata API)
+
+#### Unified Search (Recommended)
+```bash
+# Search across all financial data types
+curl -X GET "http://localhost:8000/api/search?q=Apple&year=2024"
+```
+
+**Response format**:
+```json
+{
+  "results": [
+    {
+      "title": "NYC Contract: Apple Inc.",
+      "description": "Amount: $125,000.00 | Agency: Department of Technology | IT Services Contract",
+      "amount": 125000.00,
+      "date": "2024-01-15",
+      "source": "checkbook",
+      "vendor": "Apple Inc.",
+      "agency": "Department of Technology",
+      "record_type": "contract",
+      "year": "2024"
+    }
+  ]
+}
+```
+
+### Authentication Notes
+
+**✅ Current Setup**: Your integration uses **Socrata/NYC Open Data API** with:
+- **API Key ID**: For OAuth authentication
+- **API Key Secret**: For OAuth authentication  
+- **App Token**: For enhanced rate limits and identification
+
+This provides access to all NYC Checkbook data through the official NYC Open Data platform.
+
+### Rate Limiting & Caching
+
+- **Rate Limit**: 2.0 seconds between API requests (respectful to Socrata)
+- **Datasets**: 15 datasets across contracts, spending, revenue, and budget
+- **Caching**: 24-hour Redis cache (if available)
+- **Timeout**: 30 seconds per API request
+
+## 🧪 Testing
+
+### Run Full Test Suite
+```bash
+cd backend
+pytest tests/ -v
+```
+
+### Test Checkbook Integration
+```bash
+cd backend
+python -c "
+import asyncio
+from app.adapters.checkbook import search
+
+async def test():
+    results = await search('Apple', 2024)
+    print(f'✅ Found {len(results)} results')
+    for r in results[:3]:
+        print(f'   • {r[\"vendor\"]} - ${r[\"amount\"]:,.2f}')
+
+asyncio.run(test())
+"
+```
+
+### Expected Output
+```
+✅ Found 28 results
+   • Apple Inc. - $500,000.00
+   • Apple Computer Inc. - $125,000.00
+   • Big Apple Construction - $75,000.00
+```
+
+## 📊 Features
+
+### Socrata API Benefits
+- **Official Data**: Direct access to NYC's authoritative Open Data platform
+- **High Rate Limits**: Enhanced with API Key authentication
+- **Comprehensive**: 15+ datasets across all financial data types
+- **Reliable**: Battle-tested infrastructure used by many applications
+
+### Search Capabilities
+- **Fuzzy Matching**: Find entities with variations in name formatting
+- **Multi-dataset**: Search across 15+ datasets simultaneously
+- **Filtering**: Filter by year, amount, agency, data type
+- **Sorting**: Results sorted by relevance and financial impact
+
+### Caching & Performance
+- **Redis Caching**: 24-hour cache for frequently accessed data
+- **Parallel Queries**: Multiple datasets queried simultaneously
+- **Rate Limiting**: Respectful API usage with configurable delays
+- **Error Handling**: Graceful fallbacks when services are unavailable
+
+## 🔧 Configuration
+
+### Environment Variables
+
+```bash
+# NYC Checkbook / Socrata API
+SOCRATA_API_KEY_ID=90d81emkbs10ht4iy25rpqs8u
+SOCRATA_API_KEY_SECRET=4pajtcdkz6wisx6nx1mpayntogwxtzdie3944au2u2nvkeskvv
+SOCRATA_APP_TOKEN=2UYrUskVvUcZM1VR5e06dvfV
+CHECKBOOK_BASE_URL=https://data.cityofnewyork.us/resource
+CHECKBOOK_RATE_LIMIT=2.0
+
+# Federal APIs
+LDA_API_KEY=your_lda_key_here
+
+# Caching
+REDIS_URL=redis://localhost:6379/0
+CACHE_TTL=86400
+
+# Performance
+MAX_CONCURRENT_REQUESTS=5
+REQUEST_TIMEOUT=30
+MAX_RESULTS_PER_SOURCE=50
+```
+
+### Feature Flags
+```bash
+# Enable/disable specific data sources
+ENABLE_CHECKBOOK=true
+ENABLE_NYS_ETHICS=true
+ENABLE_SENATE_LDA=true
+ENABLE_HOUSE_LDA=true
+ENABLE_NYC_LOBBYIST=true
+```
+
+## 🚀 Deployment
+
+### Production Environment
+1. Set `ENVIRONMENT=production` in `.env`
+2. Configure Redis for caching
+3. Set up proper logging with `LOG_LEVEL=INFO`
+4. Enable CORS for your frontend domain
+
+### Docker Support
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+```
+
+## 📝 API Documentation
+
+Once running, visit:
+- **Interactive API Docs**: http://localhost:8000/docs
+- **ReDoc Documentation**: http://localhost:8000/redoc
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## 📄 License
+
+[Your License Here]
+
+---
+
+**Questions?** Check the [API documentation](http://localhost:8000/docs) or [open an issue](https://github.com/your-repo/issues).
+
+## Setup Instructions
+
+### Environment Configuration
+
+Copy `env.example` to `environment.env` and configure the following:
+
+```bash
+cp env.example environment.env
+```
+
+### API Credentials
+
+#### Socrata API (NYC Open Data)
+The application uses Socrata API for NYC Checkbook data:
+
+```env
+# NYC Open Data / Socrata API Credentials (for NYC Checkbook data)
+SOCRATA_API_KEY_ID=90d81emkbs10ht4iy25rpqs8u
+SOCRATA_API_KEY_SECRET=4pajtcdkz6wisx6nx1mpayntogwxtzdie3944au2u2nvkeskvv
+# SOCRATA_APP_TOKEN=2UYrUskVvUcZM1VR5e06dvfV  # Invalid - do not use
+```
+
+**Important Notes:**
+- Uses OAuth authentication with API Key ID + Secret
+- The App Token listed is invalid and should not be used
+- Authentication confirmed working as of latest update
+- Some datasets may require specific access permissions
+
+---
+
+**Made with ❤️ for government transparency and accountability**
+
+## 🔍 Data Sources
+
+### NYC Checkbook (Socrata API)
+Access to New York City's financial data through the NYC Open Data / Socrata API:
+- **Contracts**: Active contracts, MWBE contracts, modifications
+- **Spending**: Payroll, financial transactions, capital commitments  
+- **Revenue**: Budget data, tax revenue, property tax, collections
+- **Budget**: Expense budget, summary, modifications
+
+**API Endpoint**: `https://data.cityofnewyork.us/resource`
+**Authentication**: Socrata API Key ID + Secret + App Token
+
+### Federal Lobbying Data
+- **Senate LDA**: Lobbying Disclosure Act filings
+- **House LDA**: House lobbying registrations
+
+### State & Local Data
+- **NYS Ethics**: Joint Commission on Public Ethics filings
+- **NYC Lobbyist**: New York City lobbyist registrations
+
+## 🛠 API Usage
+
+### NYC Checkbook (Socrata API)
+
+#### Unified Search (Recommended)
+```bash
+# Search across all financial data types
+curl -X GET "http://localhost:8000/api/search?q=Apple&year=2024"
+```
+
+**Response format**:
+```json
+{
+  "results": [
+    {
+      "title": "NYC Contract: Apple Inc.",
+      "description": "Amount: $125,000.00 | Agency: Department of Technology | IT Services Contract",
+      "amount": 125000.00,
+      "date": "2024-01-15",
+      "source": "checkbook",
+      "vendor": "Apple Inc.",
+      "agency": "Department of Technology",
+      "record_type": "contract",
+      "year": "2024"
+    }
+  ]
+}
+```
+
+### Authentication Notes
+
+**✅ Current Setup**: Your integration uses **Socrata/NYC Open Data API** with:
+- **API Key ID**: For OAuth authentication
+- **API Key Secret**: For OAuth authentication  
+- **App Token**: For enhanced rate limits and identification
+
+This provides access to all NYC Checkbook data through the official NYC Open Data platform.
+
+### Rate Limiting & Caching
+
+- **Rate Limit**: 2.0 seconds between API requests (respectful to Socrata)
+- **Datasets**: 15 datasets across contracts, spending, revenue, and budget
+- **Caching**: 24-hour Redis cache (if available)
+- **Timeout**: 30 seconds per API request
+
+## 🧪 Testing
+
+### Run Full Test Suite
+```bash
+cd backend
+pytest tests/ -v
+```
+
+### Test Checkbook Integration
+```bash
+cd backend
+python -c "
+import asyncio
+from app.adapters.checkbook import search
+
+async def test():
+    results = await search('Apple', 2024)
+    print(f'✅ Found {len(results)} results')
+    for r in results[:3]:
+        print(f'   • {r[\"vendor\"]} - ${r[\"amount\"]:,.2f}')
+
+asyncio.run(test())
+"
+```
+
+### Expected Output
+```
+✅ Found 28 results
+   • Apple Inc. - $500,000.00
+   • Apple Computer Inc. - $125,000.00
+   • Big Apple Construction - $75,000.00
+```
+
+## 📊 Features
+
+### Socrata API Benefits
+- **Official Data**: Direct access to NYC's authoritative Open Data platform
+- **High Rate Limits**: Enhanced with API Key authentication
+- **Comprehensive**: 15+ datasets across all financial data types
+- **Reliable**: Battle-tested infrastructure used by many applications
+
+### Search Capabilities
+- **Fuzzy Matching**: Find entities with variations in name formatting
+- **Multi-dataset**: Search across 15+ datasets simultaneously
+- **Filtering**: Filter by year, amount, agency, data type
+- **Sorting**: Results sorted by relevance and financial impact
+
+### Caching & Performance
+- **Redis Caching**: 24-hour cache for frequently accessed data
+- **Parallel Queries**: Multiple datasets queried simultaneously
+- **Rate Limiting**: Respectful API usage with configurable delays
+- **Error Handling**: Graceful fallbacks when services are unavailable
+
+## 🔧 Configuration
+
+### Environment Variables
+
+```bash
+# NYC Checkbook / Socrata API
+SOCRATA_API_KEY_ID=90d81emkbs10ht4iy25rpqs8u
+SOCRATA_API_KEY_SECRET=4pajtcdkz6wisx6nx1mpayntogwxtzdie3944au2u2nvkeskvv
+SOCRATA_APP_TOKEN=2UYrUskVvUcZM1VR5e06dvfV
+CHECKBOOK_BASE_URL=https://data.cityofnewyork.us/resource
+CHECKBOOK_RATE_LIMIT=2.0
+
+# Federal APIs
+LDA_API_KEY=your_lda_key_here
+
+# Caching
+REDIS_URL=redis://localhost:6379/0
+CACHE_TTL=86400
+
+# Performance
+MAX_CONCURRENT_REQUESTS=5
+REQUEST_TIMEOUT=30
+MAX_RESULTS_PER_SOURCE=50
+```
+
+### Feature Flags
+```bash
+# Enable/disable specific data sources
+ENABLE_CHECKBOOK=true
+ENABLE_NYS_ETHICS=true
+ENABLE_SENATE_LDA=true
+ENABLE_HOUSE_LDA=true
+ENABLE_NYC_LOBBYIST=true
+```
+
+## 🚀 Deployment
+
+### Production Environment
+1. Set `ENVIRONMENT=production` in `.env`
+2. Configure Redis for caching
+3. Set up proper logging with `LOG_LEVEL=INFO`
+4. Enable CORS for your frontend domain
+
+### Docker Support
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+```
+
+## 📝 API Documentation
+
+Once running, visit:
+- **Interactive API Docs**: http://localhost:8000/docs
+- **ReDoc Documentation**: http://localhost:8000/redoc
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## 📄 License
+
+[Your License Here]
+
+---
+
+**Questions?** Check the [API documentation](http://localhost:8000/docs) or [open an issue](https://github.com/your-repo/issues). 
