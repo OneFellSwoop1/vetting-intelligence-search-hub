@@ -3,6 +3,8 @@
   <type_of_data>Contracts</type_of_data>
   <records_from>{{ records_from }}</records_from>
   <max_records>{{ max_records }}</max_records>
+  <status>{{ status | default('A') }}</status>
+  <category>{{ category | default('contracts') }}</category>
   {% if search_criteria %}
   <search_criteria>
     {% if fiscal_year %}
