@@ -10,6 +10,9 @@ from ..adapters import nys_ethics as nys_ethics_adapter
 from ..adapters import senate_lda as senate_lda_adapter
 from ..adapters import nyc_lobbyist as nyc_lobbyist_adapter
 
+# Import the new service
+from ..services.checkbook import CheckbookNYCService
+
 from ..schemas import SearchResult
 from ..cache import CacheService
 from ..user_management import UserProfile, check_user_rate_limit
@@ -230,37 +233,90 @@ async def get_search_suggestions(
     q: str = Query(..., description="Query string for suggestions"),
     limit: int = Query(5, description="Maximum number of suggestions to return")
 ):
-    """Get search suggestions based on query input."""
-    if len(q) < 2:
-        return {"suggestions": []}
+    """
+    Get search suggestions based on cached data and common patterns.
+    Returns popular entities and search patterns.
+    """
     
-    # This is a simplified version - in production you'd have a more sophisticated suggestion system
-    # You could use elasticsearch, a dedicated search service, or maintain a database of popular searches
-    
-    # For now, return some common entity-based suggestions
-    common_entities = [
-        "Microsoft", "Google", "Apple", "Amazon", "Meta", "Tesla", "OpenAI",
-        "IBM", "Oracle", "Salesforce", "Netflix", "Uber", "Airbnb",
-        "Goldman Sachs", "JPMorgan", "Bank of America", "Wells Fargo",
-        "Lockheed Martin", "Boeing", "Raytheon", "General Dynamics",
-        "Pfizer", "Johnson & Johnson", "Moderna", "Novartis",
-        "ExxonMobil", "Chevron", "BP", "Shell", "ConocoPhillips"
+    # Simple implementation - in production, this would query
+    # a suggestion database or use more sophisticated logic
+    suggestions = [
+        "Apple Inc.",
+        "Microsoft",
+        "Google",
+        "Amazon",
+        "Tesla",
     ]
     
     # Filter suggestions based on query
-    suggestions = [
-        entity for entity in common_entities 
-        if q.lower() in entity.lower()
-    ][:limit]
+    filtered = [s for s in suggestions if q.lower() in s.lower()]
     
-    # Add some query variations if we have space
-    if len(suggestions) < limit:
-        variations = [
-            f"{q} Inc",
-            f"{q} LLC", 
-            f"{q} Corporation",
-            f"{q} Corp"
-        ]
-        suggestions.extend(variations[:limit - len(suggestions)])
+    return {
+        "suggestions": filtered[:limit],
+        "query": q
+    }
+
+@router.get("/checkbook/{domain}")
+async def get_checkbook_data(
+    domain: str,
+    fiscal_year: Optional[int] = Query(None, description="Fiscal year filter"),
+    feed_id: Optional[str] = Query(None, description="Feed ID for data-feed domain"),
+    records_from: int = Query(1, description="Starting record number for pagination"),
+    max_records: int = Query(20000, description="Maximum records per request"),
+    user: UserProfile = Depends(check_user_rate_limit)
+):
+    """
+    Direct access to Checkbook NYC official XML API
     
-    return {"suggestions": suggestions} 
+    Supported domains:
+    - contracts: Contract data
+    - spending: Spending/payment data  
+    - revenue: Revenue data
+    - data_feed: Custom data feeds (requires feed_id)
+    """
+    
+    # Validate domain
+    valid_domains = ['contracts', 'spending', 'revenue', 'data_feed']
+    if domain.lower() not in valid_domains:
+        return {
+            "error": f"Invalid domain '{domain}'. Must be one of: {', '.join(valid_domains)}",
+            "valid_domains": valid_domains
+        }
+    
+    # Validate feed_id for data_feed domain
+    if domain.lower() == 'data_feed' and not feed_id:
+        return {
+            "error": "feed_id parameter is required for data_feed domain",
+            "example": "/checkbook/data_feed?feed_id=your_feed_id"
+        }
+    
+    logger.info(f"Checkbook API request: domain={domain}, fiscal_year={fiscal_year}, feed_id={feed_id}")
+    
+    try:
+        service = CheckbookNYCService()
+        results = await service.fetch(
+            domain=domain.lower(),
+            fiscal_year=fiscal_year,
+            feed_id=feed_id,
+            records_from=records_from,
+            max_records=max_records
+        )
+        
+        return {
+            "domain": domain,
+            "fiscal_year": fiscal_year,
+            "feed_id": feed_id,
+            "records_from": records_from,
+            "max_records": max_records,
+            "total_results": len(results),
+            "results": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching Checkbook data: {e}")
+        return {
+            "error": f"Failed to fetch {domain} data: {str(e)}",
+            "domain": domain,
+            "fiscal_year": fiscal_year,
+            "feed_id": feed_id
+        } 

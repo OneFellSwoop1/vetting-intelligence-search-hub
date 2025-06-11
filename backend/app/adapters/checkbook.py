@@ -1,106 +1,158 @@
 import httpx
 import logging
 import asyncio
+import os
 from typing import List, Dict, Any
+from datetime import datetime
+import json
+
+# Import the new service
+from ..services.checkbook import CheckbookNYCService
 
 logger = logging.getLogger(__name__)
 
-async def search_checkbook(query: str, year: int = None) -> List[Dict[str, Any]]:
+class CheckbookNYCAdapter:
     """
-    Search NYC Contract Awards and Spending data via accessible Socrata API
-    Uses accessible datasets for NYC spending and contract information
+    Adapter for NYC Checkbook using the official XML API
+    Maintains backward compatibility while using the new service layer
     """
-    results = []
     
-    try:
-        # Add delay for respectful API usage
-        await asyncio.sleep(1.0)
+    def __init__(self):
+        self.service = CheckbookNYCService()
         
-        async with httpx.AsyncClient(timeout=45.0) as client:
+    async def search_contracts(self, query: str, year: int = None) -> List[Dict[str, Any]]:
+        """Search NYC contracts data using official XML API"""
+        logger.info(f"Searching contracts for: {query}, year: {year}")
+        try:
+            results = await self.service.fetch('contracts', fiscal_year=year)
             
-            # Use multiple accessible NYC datasets
-            datasets = [
-                {
-                    "id": "qyyg-4tf5",
-                    "name": "Recent Contract Awards",
-                    "url": "https://data.cityofnewyork.us/resource/qyyg-4tf5.json"
-                }
+            # Filter results based on query
+            filtered_results = []
+            query_lower = query.lower()
+            
+            for result in results:
+                # Search in vendor, agency, and description fields
+                searchable_text = (
+                    result.get('vendor', '').lower() +
+                    result.get('agency', '').lower() + 
+                    result.get('description', '').lower()
+                )
+                
+                if query_lower in searchable_text:
+                    result['record_type'] = 'contract'
+                    filtered_results.append(result)
+            
+            logger.info(f"Contracts search returned {len(filtered_results)} filtered results")
+            return filtered_results[:20]  # Limit for backward compatibility
+            
+        except Exception as e:
+            logger.error(f"Error searching contracts: {e}")
+            return []
+
+    async def search_spending(self, query: str, year: int = None) -> List[Dict[str, Any]]:
+        """Search NYC spending data using official XML API"""
+        logger.info(f"Searching spending for: {query}, year: {year}")
+        try:
+            results = await self.service.fetch('spending', fiscal_year=year)
+            
+            # Filter results based on query
+            filtered_results = []
+            query_lower = query.lower()
+            
+            for result in results:
+                # Search in vendor, agency, and description fields
+                searchable_text = (
+                    result.get('vendor', '').lower() +
+                    result.get('agency', '').lower() + 
+                    result.get('description', '').lower()
+                )
+                
+                if query_lower in searchable_text:
+                    result['record_type'] = 'spending'
+                    filtered_results.append(result)
+            
+            logger.info(f"Spending search returned {len(filtered_results)} filtered results")
+            return filtered_results[:20]  # Limit for backward compatibility
+            
+        except Exception as e:
+            logger.error(f"Error searching spending: {e}")
+            return []
+
+    async def search_revenue(self, query: str, year: int = None) -> List[Dict[str, Any]]:
+        """Search NYC revenue data using official XML API"""
+        logger.info(f"Searching revenue for: {query}, year: {year}")
+        try:
+            results = await self.service.fetch('revenue', fiscal_year=year)
+            
+            # Filter results based on query
+            filtered_results = []
+            query_lower = query.lower()
+            
+            for result in results:
+                # Search in agency and description fields
+                searchable_text = (
+                    result.get('agency', '').lower() + 
+                    result.get('description', '').lower()
+                )
+                
+                if query_lower in searchable_text:
+                    result['record_type'] = 'revenue'
+                    filtered_results.append(result)
+            
+            logger.info(f"Revenue search returned {len(filtered_results)} filtered results")
+            return filtered_results[:15]  # Limit for backward compatibility
+            
+        except Exception as e:
+            logger.error(f"Error searching revenue: {e}")
+            return []
+
+    async def search_budget(self, query: str, year: int = None) -> List[Dict[str, Any]]:
+        """Search NYC budget data - kept for backward compatibility"""
+        logger.info(f"Budget search deprecated - using revenue data for: {query}, year: {year}")
+        # For backward compatibility, redirect budget searches to revenue
+        return await self.search_revenue(query, year)
+
+    async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
+        """
+        Search all NYC financial data types: contracts, spending, revenue
+        Updated to use the official XML API with all four data types
+        """
+        logger.info(f"Starting unified CheckbookNYC search for: '{query}' (year: {year})")
+        
+        try:
+            # Search all four data types in parallel
+            tasks = [
+                self.search_contracts(query, year),
+                self.search_spending(query, year),
+                self.search_revenue(query, year),
             ]
             
-            for dataset in datasets:
-                try:
-                    # Build search parameters for Socrata API
-                    params = {
-                        "$limit": 500,
-                        "$where": f"upper(vendor_name) LIKE '%{query.upper()}%' OR upper(short_title) LIKE '%{query.upper()}%' OR upper(agency_name) LIKE '%{query.upper()}%'",
-                        "$order": "contract_amount DESC"
-                    }
-                    
-                    # Add year filter if specified
-                    if year:
-                        year_filter = f"date_extract_y(start_date) = {year}"
-                        if "$where" in params:
-                            params["$where"] += f" AND {year_filter}"
-                        else:
-                            params["$where"] = year_filter
-                    
-                    logger.info(f"Calling {dataset['name']} API for '{query}' with limit={params['$limit']}...")
-                    
-                    response = await client.get(dataset["url"], params=params)
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        logger.info(f"{dataset['name']} returned {len(data)} raw results")
-                        
-                        for item in data:
-                            try:
-                                # Extract and format the contract/spending record
-                                amount_str = item.get('contract_amount', item.get('start_amount_sum', item.get('amount', '0')))
-                                try:
-                                    amount = float(amount_str)
-                                    amount_formatted = f"${amount:,.2f}"
-                                except (ValueError, TypeError):
-                                    amount = 0
-                                    amount_formatted = "$0.00"
-                                
-                                result = {
-                                    'entity_name': item.get('vendor_name', item.get('vendor', 'Unknown Vendor')),
-                                    'vendor': item.get('vendor_name', item.get('vendor', 'Unknown Vendor')),
-                                    'title': item.get('short_title', item.get('purpose', item.get('description', 'No description available'))),
-                                    'amount': amount_formatted,
-                                    'date': item.get('start_date', item.get('issue_date', 'Unknown Date'))[:10] if item.get('start_date') or item.get('issue_date') else 'Unknown Date',
-                                    'agency': item.get('agency_name', item.get('agency', 'Unknown Agency')),
-                                    'description': item.get('short_title', item.get('purpose', item.get('description', 'No description available'))),
-                                    'document_id': item.get('pin', item.get('contract_number', item.get('document_id', ''))),
-                                    'dataset': dataset['name'],
-                                    'source': 'checkbook'
-                                }
-                                
-                                results.append(result)
-                                
-                            except Exception as e:
-                                logger.warning(f"Error processing {dataset['name']} record: {e}")
-                                continue
-                        
-                    else:
-                        logger.warning(f"{dataset['name']} API error: HTTP {response.status_code}")
-                        logger.debug(f"Response: {response.text[:200]}")
-                
-                except Exception as e:
-                    logger.warning(f"Error searching {dataset['name']}: {e}")
-                    continue
-        
-        logger.info(f"NYC Checkbook search completed. Found {len(results)} total results for '{query}'")
-        
-        # Sort by amount (descending) and limit to top 200 results
-        results.sort(key=lambda x: float(x['amount'].replace('$', '').replace(',', '')) if x['amount'] != '$0.00' else 0, reverse=True)
-        return results[:200]
-        
-    except Exception as e:
-        logger.error(f"NYC Checkbook search error: {e}")
-        return []
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Combine all results
+            all_results = []
+            data_types = ['contracts', 'spending', 'revenue']
+            
+            for i, result_set in enumerate(results):
+                if isinstance(result_set, list):
+                    all_results.extend(result_set)
+                    logger.info(f"{data_types[i]} returned {len(result_set)} results")
+                elif isinstance(result_set, Exception):
+                    logger.error(f"Error in {data_types[i]} search: {result_set}")
+            
+            # Sort by amount (highest first) and limit results
+            all_results.sort(key=lambda x: x.get('amount', 0) or 0, reverse=True)
+            final_results = all_results[:50]  # Limit total results
+            
+            logger.info(f"CheckbookNYC unified search completed: {len(final_results)} total results for '{query}'")
+            return final_results
+            
+        except Exception as e:
+            logger.error(f"Error in unified CheckbookNYC search: {e}")
+            return []
 
-# Add alias for compatibility with websocket imports
+# Module-level search function for backward compatibility
 async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
-    """Alias for search_checkbook to maintain compatibility."""
-    return await search_checkbook(query, year)
+    """Module-level search function for CheckbookNYC data"""
+    adapter = CheckbookNYCAdapter()
+    return await adapter.search(query, year)

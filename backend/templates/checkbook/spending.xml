@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<request>
+  <type_of_data>Spending</type_of_data>
+  <records_from>{{ records_from }}</records_from>
+  <max_records>{{ max_records }}</max_records>
+  {% if search_criteria %}
+  <search_criteria>
+    {% if fiscal_year %}
+    <fiscal_year>{{ fiscal_year }}</fiscal_year>
+    {% endif %}
+    {% if vendor_name %}
+    <vendor_name>{{ vendor_name }}</vendor_name>
+    {% endif %}
+    {% if agency_name %}
+    <agency_name>{{ agency_name }}</agency_name>
+    {% endif %}
+  </search_criteria>
+  {% endif %}
+</request> 
