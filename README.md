@@ -495,7 +495,7 @@ SOCRATA_APP_TOKEN=XF40HzCEpiKz98H9M8N2TZ7s9
 
 **Important Notes:**
 - Uses OAuth authentication with API Key ID + Secret
-- The App Token listed is invalid and should not be used
+- The App Token is working correctly and provides enhanced rate limits
 - Authentication confirmed working as of latest update
 - Some datasets may require specific access permissions
 
