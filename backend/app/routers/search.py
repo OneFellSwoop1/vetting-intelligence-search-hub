@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, List
 import asyncio
 import logging
 
-# Import all adapters
+# Import all adapters - restored since cache issues are fixed
 from ..adapters import checkbook as checkbook_adapter
 from ..adapters import nys_ethics as nys_ethics_adapter  
 from ..adapters import senate_lda as senate_lda_adapter
@@ -18,7 +18,7 @@ from ..cache import CacheService
 from ..user_management import UserProfile, check_user_rate_limit
 from fastapi import Query
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1")
 logger = logging.getLogger(__name__)
 
 # Initialize cache service
@@ -124,17 +124,15 @@ async def search(
     # Convert year to int if provided
     year_int = int(request.year) if request.year and request.year.isdigit() else None
     
-    # Define all search tasks including restored adapters
-    search_tasks = [
-        ("checkbook", checkbook_adapter.search(request.query, year_int)),
-        ("nys_ethics", nys_ethics_adapter.search(request.query, year_int)),
-        ("senate_lda", senate_lda_adapter.search(request.query, year_int)),
-        ("nyc_lobbyist", nyc_lobbyist_adapter.search(request.query, year_int)),
-    ]
+    # Determine which sources to use
+    # Re-enabled nys_ethics with optimized Socrata API implementation
+    available_sources = ["checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist"]
     
     # Filter by sources if specified
     if request.sources:
-        search_tasks = [(source, task) for source, task in search_tasks if source in request.sources]
+        sources_to_use = [source for source in request.sources if source in available_sources]
+    else:
+        sources_to_use = available_sources
     
     # Filter by jurisdiction if specified
     if request.jurisdiction:
@@ -145,14 +143,35 @@ async def search(
         }
         
         allowed_sources = jurisdiction_filter.get(request.jurisdiction, [])
-        search_tasks = [(source, task) for source, task in search_tasks if source in allowed_sources]
+        sources_to_use = [source for source in sources_to_use if source in allowed_sources]
     
-    # Execute all searches in parallel
+    # Create search tasks only for the sources we'll actually use
+    search_tasks = []
+    for source in sources_to_use:
+        if source == "checkbook":
+            search_tasks.append(("checkbook", checkbook_adapter.search(request.query, year_int)))
+        elif source == "nys_ethics":
+            search_tasks.append(("nys_ethics", nys_ethics_adapter.search(request.query, year_int)))
+        elif source == "senate_lda":
+            search_tasks.append(("senate_lda", senate_lda_adapter.search(request.query, year_int)))
+        elif source == "nyc_lobbyist":
+            search_tasks.append(("nyc_lobbyist", nyc_lobbyist_adapter.search(request.query, year_int)))
+    
+    # Execute all searches in parallel with timeout
     results = []
     total_hits = {}
     
-    # Run all tasks concurrently
-    task_results = await asyncio.gather(*[task for _, task in search_tasks], return_exceptions=True)
+    # Run all tasks concurrently with timeout
+    try:
+        # Add 30-second timeout to prevent hanging
+        task_results = await asyncio.wait_for(
+            asyncio.gather(*[task for _, task in search_tasks], return_exceptions=True),
+            timeout=30.0
+        )
+    except asyncio.TimeoutError:
+        logger.warning(f"Search timeout after 30 seconds for query: '{request.query}'")
+        # Return partial results if available
+        task_results = [[] for _ in search_tasks]  # Empty results for all sources
     
     # Process results
     for i, (source, _) in enumerate(search_tasks):
@@ -255,6 +274,86 @@ async def get_search_suggestions(
         "suggestions": filtered[:limit],
         "query": q
     }
+
+@router.get("/simple-test")
+async def simple_test():
+    """
+    Very simple test endpoint to check if the router is working
+    """
+    return {
+        'status': 'working',
+        'message': 'Router is responding correctly'
+    }
+
+@router.get("/checkbook/health")
+async def checkbook_health_check():
+    """
+    Simple health check for Checkbook adapter without external API calls
+    """
+    try:
+        adapter = checkbook_adapter.CheckbookNYCAdapter()
+        
+        return {
+            'status': 'healthy',
+            'cache_enabled': adapter.cache is not None,
+            'cache_ttl': adapter.cache_ttl,
+            'base_url': adapter.base_url,
+            'app_token_configured': bool(adapter.app_token),
+            'api_key_configured': bool(adapter.api_key_id and adapter.api_key_secret),
+            'datasets_configured': len(adapter.MAIN_CHECKBOOK_DATASETS)
+        }
+        
+    except Exception as e:
+        logger.error(f"Checkbook health check failed: {e}")
+        return {
+            'status': 'error',
+            'error': str(e)
+        }
+
+@router.get("/checkbook/test")
+async def test_checkbook_integration(
+    query: str = Query("Apple", description="Test query to search"),
+    year: Optional[int] = Query(None, description="Optional fiscal year filter"),
+    user: UserProfile = Depends(check_user_rate_limit)
+):
+    """
+    Test endpoint for Checkbook NYC integration
+    Returns comprehensive test results including metrics and data samples
+    """
+    try:
+        adapter = checkbook_adapter.CheckbookNYCAdapter()
+        
+        # Reset metrics before test
+        adapter.reset_metrics()
+        
+        # Test different data types
+        test_results = {}
+        for data_type in ['contracts', 'spending', 'revenue', 'budget']:
+            results = await adapter.search_enhanced(query, data_type, year)
+            test_results[data_type] = {
+                'count': len(results),
+                'sample': results[:3] if results else []
+            }
+        
+        # Get metrics
+        metrics = adapter.get_metrics()
+        
+        return {
+            'status': 'success',
+            'query': query,
+            'year': year,
+            'metrics': metrics,
+            'results': test_results,
+            'cache_enabled': adapter.cache is not None,
+            'cache_ttl': adapter.cache_ttl
+        }
+        
+    except Exception as e:
+        logger.error(f"Checkbook test failed: {e}")
+        return {
+            'status': 'error',
+            'error': str(e)
+        }
 
 @router.get("/checkbook/{domain}")
 async def get_checkbook_data(

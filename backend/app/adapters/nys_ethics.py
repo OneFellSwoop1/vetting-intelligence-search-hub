@@ -1,5 +1,8 @@
 import aiohttp
+import asyncio
 import logging
+import hashlib
+import os
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -10,63 +13,99 @@ class NYSEthicsAdapter:
         self.name = "NYS Ethics Lobbying"
         self.base_url = "https://data.ny.gov/resource"
         
-    async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
-        """Search NY State lobbying data from Commission on Ethics and Lobbying in Government"""
+        # Use Socrata authentication like NYC Checkbook
+        self.app_token = os.getenv('NYC_OPEN_DATA_APP_TOKEN')  # Same token works for NY State
+        self.api_key_id = os.getenv('NYC_OPEN_DATA_API_KEY_ID')
+        self.api_key_secret = os.getenv('NYC_OPEN_DATA_API_KEY_SECRET')
+        
+        # Optimal datasets from NY State Open Data
+        self.datasets = {
+            "bi_monthly": "t9kf-dqbc",  # Lobbyist Bi-Monthly Reports - most comprehensive
+            "registration": "se5j-cmbb",  # Lobbyist Statement of Registration
+            "public_corp": "2pde-cfs9"   # Public Corporation Statement of Registration
+        }
+        
+        # Cache configuration
+        self.cache = None
+        self.cache_ttl = 3600  # 1 hour
         try:
+            from ..cache import CacheService
+            self.cache = CacheService()
+            logger.info("Redis caching enabled for NYS Ethics adapter")
+        except ImportError:
+            logger.info("Redis caching not available for NYS Ethics adapter")
+        
+    def _get_cache_key(self, query: str, year: int = None) -> str:
+        """Generate cache key for a search query"""
+        key_data = f"nys_ethics:{query}:{year or 'all'}"
+        return hashlib.sha256(key_data.encode()).hexdigest()
+
+    def _get_auth_headers(self) -> Dict[str, str]:
+        """Get authentication headers for Socrata API"""
+        headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+        
+        if self.app_token:
+            headers['X-App-Token'] = self.app_token
+            logger.debug("Using Socrata app token for NY State API")
+            
+        return headers
+
+    async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
+        """Optimized search using Socrata API with proper authentication"""
+        try:
+            # Check cache first
+            cache_key = self._get_cache_key(query, year)
+            if self.cache:
+                try:
+                    cached_data = self.cache.get(cache_key)
+                    if cached_data:
+                        import json
+                        cached_results = json.loads(cached_data)
+                        logger.info(f"Returning {len(cached_results)} cached NYS Ethics results for query: '{query}'")
+                        return cached_results
+                except Exception as e:
+                    logger.debug(f"Cache error: {e}")
+            
             results = []
             
+            # Use only the bi-monthly reports dataset - it's the most comprehensive
+            dataset_id = self.datasets["bi_monthly"]
+            
             async with aiohttp.ClientSession() as session:
-                # Search multiple lobbying datasets
-                
-                # 1. Lobbyist Bi-Monthly Reports (most comprehensive data)
-                await self._search_bimonthly_reports(session, query, year, results)
-                
-                # 2. Client Semi-Annual Reports
-                await self._search_client_reports(session, query, year, results)
-                
-                # 3. Lobbyist Registration Statements
-                await self._search_registrations(session, query, year, results)
-                
-            # Remove duplicates and sort by amount/date
-            unique_results = self._deduplicate_results(results)
-            sorted_results = sorted(unique_results, key=lambda x: (x.get('amount', 0) or 0), reverse=True)
-            
-            logger.info(f"NY State Ethics returned {len(sorted_results)} lobbying results for query: {query}")
-            return sorted_results[:20]  # Limit to 20 results
-            
-        except Exception as e:
-            logger.error(f"Error in NYSEthicsAdapter: {e}")
-            return []
-    
-    async def _search_bimonthly_reports(self, session: aiohttp.ClientSession, query: str, year: int, results: List[Dict[str, Any]]):
-        """Search Lobbyist Bi-Monthly Reports dataset"""
-        try:
-            # Updated dataset IDs for bi-monthly reports (found from data.ny.gov)
-            dataset_ids = ["uxyi-nem6", "3bqx-tqde", "qym9-xzj6", "e6wn-kzub"]  # 2024, 2023, 2019+, 2022
-            
-            for dataset_id in dataset_ids:
                 try:
                     url = f"{self.base_url}/{dataset_id}.json"
                     
-                    # Build search conditions for lobbying data using correct field names
-                    search_conditions = []
-                    search_conditions.append(f"upper(contractual_client_name) like upper('%{query}%')")
-                    search_conditions.append(f"upper(beneficial_client) like upper('%{query}%')")
-                    search_conditions.append(f"upper(principal_lobbyist) like upper('%{query}%')")
-                    search_conditions.append(f"upper(lobbying_subjects) like upper('%{query}%')")
+                    # Build optimized query using Socrata's query language
+                    where_conditions = []
                     
-                    where_clause = " OR ".join(search_conditions)
+                    # Search in key fields
+                    where_conditions.append(f"upper(contractual_client_name) like upper('%{query}%')")
+                    where_conditions.append(f"upper(beneficial_client) like upper('%{query}%')")
+                    where_conditions.append(f"upper(principal_lobbyist) like upper('%{query}%')")
+                    where_conditions.append(f"upper(lobbying_subjects) like upper('%{query}%')")
                     
+                    where_clause = " OR ".join(where_conditions)
+                    
+                    # Add year filter if specified
                     if year:
                         where_clause += f" AND reporting_year = '{year}'"
                     
+                    # Socrata API parameters
                     params = {
-                        "$limit": "50",
+                        "$limit": "50",  # Reasonable limit for performance
                         "$order": "current_period_compensation DESC NULLS LAST",
-                        "$where": where_clause
+                        "$where": where_clause,
+                        "$select": "contractual_client_name,beneficial_client,principal_lobbyist,lobbying_subjects,current_period_compensation,current_period_reimbursement,reporting_year,reporting_period,type_of_lobbying_relationship"
                     }
                     
-                    async with session.get(url, params=params) as response:
+                    # Set timeout to 5 seconds for faster response
+                    timeout = aiohttp.ClientTimeout(total=5)
+                    headers = self._get_auth_headers()
+                    
+                    async with session.get(url, params=params, headers=headers, timeout=timeout) as response:
                         if response.status == 200:
                             data = await response.json()
                             logger.info(f"NY State Lobbying Reports ({dataset_id}) returned {len(data)} records")
@@ -76,86 +115,51 @@ class NYSEthicsAdapter:
                                 if result:
                                     results.append(result)
                         else:
-                            logger.debug(f"NY State dataset {dataset_id} returned status {response.status}")
+                            logger.warning(f"NY State API returned status {response.status}")
                             
+                except asyncio.TimeoutError:
+                    logger.warning(f"Timeout searching NY State dataset {dataset_id}")
                 except Exception as e:
-                    logger.debug(f"Error searching dataset {dataset_id}: {e}")
-                    continue
-                    
-        except Exception as e:
-            logger.warning(f"Error searching bi-monthly reports: {e}")
-    
-    async def _search_client_reports(self, session: aiohttp.ClientSession, query: str, year: int, results: List[Dict[str, Any]]):
-        """Search Client Semi-Annual Reports dataset"""
-        try:
-            # Same datasets as bi-monthly (they contain client data)
-            dataset_ids = ["uxyi-nem6", "3bqx-tqde", "qym9-xzj6", "e6wn-kzub"]  # Client semi-annual reports
+                    logger.warning(f"Error searching NY State dataset {dataset_id}: {e}")
+                
+            # Remove duplicates and sort by amount
+            unique_results = self._deduplicate_results(results)
+            sorted_results = sorted(unique_results, key=lambda x: (x.get('amount', 0) or 0), reverse=True)
+            final_results = sorted_results[:20]  # Limit to 20 results
             
-            for dataset_id in dataset_ids:
+            # Cache the results
+            if self.cache and final_results:
                 try:
-                    url = f"{self.base_url}/{dataset_id}.json"
-                    
-                    search_conditions = []
-                    search_conditions.append(f"upper(contractual_client_name) like upper('%{query}%')")
-                    search_conditions.append(f"upper(beneficial_client) like upper('%{query}%')")
-                    search_conditions.append(f"upper(lobbying_subjects) like upper('%{query}%')")
-                    search_conditions.append(f"upper(principal_lobbyist) like upper('%{query}%')")
-                    
-                    where_clause = " OR ".join(search_conditions)
-                    
-                    if year:
-                        where_clause += f" AND reporting_year = '{year}'"
-                    
-                    params = {
-                        "$limit": "30",
-                        "$order": "current_period_compensation DESC NULLS LAST",
-                        "$where": where_clause
-                    }
-                    
-                    async with session.get(url, params=params) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            logger.info(f"NY State Client Reports ({dataset_id}) returned {len(data)} records")
-                            
-                            for item in data:
-                                result = self._parse_lobbying_record(item)
-                                if result:
-                                    results.append(result)
-                                    
+                    import json
+                    self.cache.set(cache_key, json.dumps(final_results), ttl=self.cache_ttl)
                 except Exception as e:
-                    logger.debug(f"Error searching client dataset {dataset_id}: {e}")
-                    continue
-                    
+                    logger.debug(f"Cache error: {e}")
+            
+            logger.info(f"NY State Ethics returned {len(final_results)} lobbying results for query: {query}")
+            return final_results
+            
         except Exception as e:
-            logger.warning(f"Error searching client reports: {e}")
-    
-    async def _search_registrations(self, session: aiohttp.ClientSession, query: str, year: int, results: List[Dict[str, Any]]):
-        """Search Lobbyist Registration Statements dataset"""
-        try:
-            # Skip registrations for now since client semi-annual reports have more comprehensive data
-            # We can add these later if needed
-            pass
-                    
-        except Exception as e:
-            logger.warning(f"Error searching registrations: {e}")
-    
+            logger.error(f"Error in NYSEthicsAdapter: {e}")
+            return []
+
     def _parse_lobbying_record(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse a NY State lobbying record using correct field names"""
+        """Parse a NY State lobbying record"""
         try:
-            # Extract key information using correct field names
+            # Extract key information
             client_name = item.get('contractual_client_name', '') or item.get('beneficial_client', '')
             lobbyist_name = item.get('principal_lobbyist', '')
             compensation_amount = self._parse_amount(item.get('current_period_compensation'))
             reimbursement_amount = self._parse_amount(item.get('current_period_reimbursement'))
             total_amount = (compensation_amount or 0) + (reimbursement_amount or 0)
             
-            # Build description
+            # Build enhanced description with more relevant information
             description_parts = []
-            if lobbyist_name:
+            if lobbyist_name and lobbyist_name != client_name:
                 description_parts.append(f"Lobbyist: {lobbyist_name}")
             if item.get('lobbying_subjects'):
-                subjects = item.get('lobbying_subjects', '').replace(';', ', ')
-                description_parts.append(f"Subjects: {subjects}")
+                subjects = item.get('lobbying_subjects', '').replace(';', ', ').strip()
+                if subjects:
+                    description_parts.append(f"Subjects: {subjects}")
             if item.get('reporting_period'):
                 description_parts.append(f"Period: {item.get('reporting_period')}")
             if item.get('type_of_lobbying_relationship'):
@@ -167,7 +171,7 @@ class NYSEthicsAdapter:
             
             description = " | ".join(description_parts)
             
-            # Determine title
+            # Determine title with better formatting
             title = f"NY State Lobbying: {client_name or 'Unknown Client'}"
             if item.get('reporting_year'):
                 title += f" ({item.get('reporting_year')})"
@@ -176,17 +180,18 @@ class NYSEthicsAdapter:
                 'title': title,
                 'description': description,
                 'amount': total_amount if total_amount > 0 else None,
-                'date': f"{item.get('reporting_year', '')}-01-01",  # Use reporting year as date
+                'date': f"{item.get('reporting_year', '')}-01-01",
                 'source': 'nys_ethics',
                 'vendor': lobbyist_name or client_name,
                 'agency': 'NY State Commission on Ethics and Lobbying',
-                'url': "https://ethics.ny.gov/public-data",
+                'url': "https://reports.ethics.ny.gov/publicquery",
                 'record_type': 'lobbying',
                 'year': item.get('reporting_year'),
                 'client': client_name,
                 'lobbyist': lobbyist_name,
                 'subjects': item.get('lobbying_subjects', ''),
-                'filing_type': item.get('filing_type', ''),
+                'period': item.get('reporting_period', ''),
+                'relationship_type': item.get('type_of_lobbying_relationship', ''),
                 'raw_data': item
             }
             
@@ -209,7 +214,7 @@ class NYSEthicsAdapter:
             return 0.0
     
     def _deduplicate_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Remove duplicate results based on title and key characteristics"""
+        """Remove duplicate results based on key characteristics"""
         seen = set()
         unique_results = []
         

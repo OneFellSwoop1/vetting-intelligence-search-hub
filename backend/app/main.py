@@ -111,7 +111,7 @@ async def shutdown_event():
         from app.database import db_manager
         await db_manager.close()
     except Exception as e:
-        logger.error(f"Error closing database: {e}")
+        logger.error(f"❌ Error closing database: {e}")
     
     logger.info("👋 API shutdown completed")
 
