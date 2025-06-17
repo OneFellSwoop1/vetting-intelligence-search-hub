@@ -112,6 +112,47 @@ class NYCLobbyistAdapter:
                 # Build URL to NYC lobbying search with pre-filled data
                 search_url = f"https://lobbyistsearch.nyc.gov/search?lobbyist={lobbyist_name.replace(' ', '+')}&year={year}"
                 
+                # Extract targets from periodic_targets field
+                targets = set()
+                for record in year_records:
+                    if record.get('periodic_targets'):
+                        # Parse targets like "Correction, Department of (DOC) Stanley Richards; Children's Services, Administration for (ACS) Michele Archbald"
+                        target_string = record.get('periodic_targets', '')
+                        if target_string and target_string.strip():
+                            # Split by semicolon and extract agency names
+                            target_parts = target_string.split(';')
+                            for target in target_parts:
+                                target = target.strip()
+                                if target:
+                                    # Extract agency name (text before the person's name)
+                                    if '(' in target and ')' in target:
+                                        # Extract department abbreviation in parentheses
+                                        start = target.find('(')
+                                        end = target.find(')')
+                                        if start < end:
+                                            agency_abbrev = target[start+1:end]
+                                            targets.add(agency_abbrev)
+                                    else:
+                                        # Fallback: use first part before person name
+                                        parts = target.split()
+                                        if len(parts) > 2:
+                                            # Assume last 2 words are person name
+                                            agency_part = ' '.join(parts[:-2])
+                                            if agency_part:
+                                                targets.add(agency_part)
+                
+                # Determine agency display
+                if targets:
+                    target_list = sorted(list(targets))
+                    if len(target_list) == 1:
+                        agency_display = target_list[0]
+                    elif len(target_list) <= 3:
+                        agency_display = ", ".join(target_list)
+                    else:
+                        agency_display = f"{target_list[0]} and {len(target_list)-1} other agencies"
+                else:
+                    agency_display = "NYC Agencies"
+                
                 structured_result = {
                     'title': title,
                     'description': description,
@@ -119,7 +160,7 @@ class NYCLobbyistAdapter:
                     'date': date_str,
                     'source': 'nyc_lobbyist',
                     'vendor': lobbyist_name,
-                    'agency': 'NYC Clerk\'s Office',
+                    'agency': agency_display,
                     'url': search_url,
                     'record_type': 'lobbying',
                     'year': year,
@@ -155,7 +196,8 @@ class NYCLobbyistAdapter:
                         f"upper(lobbyist_name) like upper('%{query}%')",
                         f"upper(client_name) like upper('%{query}%')",
                         f"upper(lobbyist_activities) like upper('%{query}%')",
-                        f"upper(periodic_activities) like upper('%{query}%')"
+                        f"upper(periodic_activities) like upper('%{query}%')",
+                        f"upper(periodic_targets) like upper('%{query}%')"
                     ]
                     
                     where_clause = " OR ".join(search_conditions)

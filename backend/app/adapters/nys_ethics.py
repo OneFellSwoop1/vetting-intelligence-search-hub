@@ -81,10 +81,10 @@ class NYSEthicsAdapter:
                     # Build optimized query using Socrata's query language
                     where_conditions = []
                     
-                    # Search in key fields
+                    # Search in key fields - using correct field names
                     where_conditions.append(f"upper(contractual_client_name) like upper('%{query}%')")
-                    where_conditions.append(f"upper(beneficial_client) like upper('%{query}%')")
-                    where_conditions.append(f"upper(principal_lobbyist) like upper('%{query}%')")
+                    where_conditions.append(f"upper(beneficial_client_name) like upper('%{query}%')")
+                    where_conditions.append(f"upper(principal_lobbyist_name) like upper('%{query}%')")
                     where_conditions.append(f"upper(lobbying_subjects) like upper('%{query}%')")
                     
                     where_clause = " OR ".join(where_conditions)
@@ -93,12 +93,12 @@ class NYSEthicsAdapter:
                     if year:
                         where_clause += f" AND reporting_year = '{year}'"
                     
-                    # Socrata API parameters
+                    # Socrata API parameters - using correct field names
                     params = {
                         "$limit": "50",  # Reasonable limit for performance
-                        "$order": "current_period_compensation DESC NULLS LAST",
+                        "$order": "compensation DESC NULLS LAST",
                         "$where": where_clause,
-                        "$select": "contractual_client_name,beneficial_client,principal_lobbyist,lobbying_subjects,current_period_compensation,current_period_reimbursement,reporting_year,reporting_period,type_of_lobbying_relationship"
+                        "$select": "contractual_client_name,beneficial_client_name,principal_lobbyist_name,lobbying_subjects,compensation,reimbursed_expenses,reporting_year,reporting_period,type_of_lobbying_communication"
                     }
                     
                     # Set timeout to 5 seconds for faster response
@@ -146,10 +146,10 @@ class NYSEthicsAdapter:
         """Parse a NY State lobbying record"""
         try:
             # Extract key information
-            client_name = item.get('contractual_client_name', '') or item.get('beneficial_client', '')
-            lobbyist_name = item.get('principal_lobbyist', '')
-            compensation_amount = self._parse_amount(item.get('current_period_compensation'))
-            reimbursement_amount = self._parse_amount(item.get('current_period_reimbursement'))
+            client_name = item.get('contractual_client_name', '') or item.get('beneficial_client_name', '')
+            lobbyist_name = item.get('principal_lobbyist_name', '')
+            compensation_amount = self._parse_amount(item.get('compensation'))
+            reimbursement_amount = self._parse_amount(item.get('reimbursed_expenses'))
             total_amount = (compensation_amount or 0) + (reimbursement_amount or 0)
             
             # Build enhanced description with more relevant information
@@ -162,8 +162,8 @@ class NYSEthicsAdapter:
                     description_parts.append(f"Subjects: {subjects}")
             if item.get('reporting_period'):
                 description_parts.append(f"Period: {item.get('reporting_period')}")
-            if item.get('type_of_lobbying_relationship'):
-                description_parts.append(f"Type: {item.get('type_of_lobbying_relationship')}")
+            if item.get('type_of_lobbying_communication'):
+                description_parts.append(f"Type: {item.get('type_of_lobbying_communication')}")
             if compensation_amount and compensation_amount > 0:
                 description_parts.append(f"Compensation: ${compensation_amount:,.2f}")
             if reimbursement_amount and reimbursement_amount > 0:
@@ -191,7 +191,7 @@ class NYSEthicsAdapter:
                 'lobbyist': lobbyist_name,
                 'subjects': item.get('lobbying_subjects', ''),
                 'period': item.get('reporting_period', ''),
-                'relationship_type': item.get('type_of_lobbying_relationship', ''),
+                'relationship_type': item.get('type_of_lobbying_communication', ''),
                 'raw_data': item
             }
             
