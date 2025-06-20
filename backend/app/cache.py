@@ -43,6 +43,10 @@ class CacheService:
         except (RedisError, json.JSONDecodeError) as e:
             logger.warning(f"Cache get error for key {key}: {e}")
             return None
+
+    async def get_async(self, key: str) -> Optional[Any]:
+        """Async get value from cache"""
+        return self.get(key)  # Redis operations are fast, sync is fine
     
     def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
         """Set value in cache with TTL"""
@@ -56,6 +60,10 @@ class CacheService:
         except (RedisError, TypeError) as e:
             logger.warning(f"Cache set error for key {key}: {e}")
             return False
+
+    async def set_async(self, key: str, value: Any, ttl: int = 3600) -> bool:
+        """Async set value in cache with TTL"""
+        return self.set(key, value, ttl)  # Redis operations are fast, sync is fine
     
     def delete(self, key: str) -> bool:
         """Delete value from cache"""
