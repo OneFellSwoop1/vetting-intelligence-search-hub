@@ -147,11 +147,15 @@ async def search(
     
     # Create search tasks only for the sources we'll actually use
     search_tasks = []
+    # Determine if this is a multi-source search (ultra-fast mode for NY State)
+    is_multi_source = len(sources_to_use) > 1
+    
     for source in sources_to_use:
         if source == "checkbook":
             search_tasks.append(("checkbook", checkbook_adapter.search(request.query, year_int)))
         elif source == "nys_ethics":
-            search_tasks.append(("nys_ethics", nys_ethics_adapter.search(request.query, year_int)))
+            # Use ultra-fast mode for multi-source searches to prevent timeouts
+            search_tasks.append(("nys_ethics", nys_ethics_adapter.search(request.query, year_int, ultra_fast_mode=is_multi_source)))
         elif source == "senate_lda":
             search_tasks.append(("senate_lda", senate_lda_adapter.search(request.query, year_int)))
         elif source == "nyc_lobbyist":
@@ -161,17 +165,21 @@ async def search(
     results = []
     total_hits = {}
     
-    # Run all tasks concurrently with timeout
+    # Run all tasks concurrently with timeout handling that preserves successful results
     try:
-        # Add 30-second timeout to prevent hanging
-        task_results = await asyncio.wait_for(
-            asyncio.gather(*[task for _, task in search_tasks], return_exceptions=True),
-            timeout=30.0
-        )
-    except asyncio.TimeoutError:
-        logger.warning(f"Search timeout after 30 seconds for query: '{request.query}'")
-        # Return partial results if available
-        task_results = [[] for _ in search_tasks]  # Empty results for all sources
+        # Use asyncio.gather with return_exceptions to handle individual failures gracefully
+        task_results = await asyncio.gather(*[task for _, task in search_tasks], return_exceptions=True)
+        
+        # Convert exceptions to empty lists and log warnings
+        for i, result in enumerate(task_results):
+            if isinstance(result, Exception):
+                source_name = search_tasks[i][0] if i < len(search_tasks) else "unknown"
+                logger.warning(f"Search adapter {source_name} failed: {result}")
+                task_results[i] = []
+                
+    except Exception as e:
+        logger.error(f"Unexpected error in search execution: {e}")
+        task_results = [[] for _ in search_tasks]
     
     # Process results
     for i, (source, _) in enumerate(search_tasks):
