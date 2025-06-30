@@ -17,7 +17,7 @@
 - All startup scripts
 - Documentation files
 
-**Correct API Key:** `REDACTED_OLD_LDA_API_KEY` (with leading zero)
+**Correct API Key:** Should start with `065` (contact admin for full key)
 
 ---
 

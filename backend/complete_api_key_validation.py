@@ -40,25 +40,25 @@ def load_and_validate_environment():
     api_configs = {
         'Senate LDA (Federal Lobbying)': {
             'env_var': 'LDA_API_KEY',
-            'expected_start': '065af08d',
+            'expected_length': 32,
             'adapters': ['senate_lda.py'],
             'description': 'Federal lobbying disclosure data'
         },
         'Socrata API Key ID (NYC Data)': {
             'env_var': 'SOCRATA_API_KEY_ID', 
-            'expected_start': '90d81emkbs',
+            'expected_length': 25,
             'adapters': ['checkbook.py', 'nyc_lobbyist.py'],
             'description': 'NYC Open Data API authentication'
         },
         'Socrata API Key Secret (NYC Data)': {
             'env_var': 'SOCRATA_API_KEY_SECRET',
-            'expected_start': '4pajtcdkz6',
+            'expected_length': 50,
             'adapters': ['checkbook.py', 'nyc_lobbyist.py'],
             'description': 'NYC Open Data API authentication'
         },
         'Socrata App Token (NYC Data)': {
             'env_var': 'SOCRATA_APP_TOKEN',
-            'expected_start': 'XF40HzCEpi',
+            'expected_length': 24,
             'adapters': ['checkbook.py', 'nyc_lobbyist.py'],
             'description': 'NYC Open Data rate limiting'
         }
@@ -68,7 +68,7 @@ def load_and_validate_environment():
     
     for service_name, config in api_configs.items():
         env_var = config['env_var']
-        expected_start = config['expected_start']
+        expected_length = config['expected_length']
         adapters = config['adapters']
         description = config['description']
         
@@ -81,13 +81,13 @@ def load_and_validate_environment():
         value = os.getenv(env_var)
         if value:
             # Validate format
-            if value.startswith(expected_start):
-                print(f'   ✅ Status: VALID (starts with {expected_start}...)')
-                print(f'   📝 Value: {value[:15]}...')
+            if len(value) >= expected_length:
+                print(f'   ✅ Status: VALID (length: {len(value)} chars)')
+                print(f'   📝 Value: {value[:6]}...{value[-4:]}')
             else:
-                print(f'   ❌ Status: INVALID FORMAT')
-                print(f'   📝 Expected: starts with {expected_start}')
-                print(f'   📝 Actual: starts with {value[:10]}')
+                print(f'   ❌ Status: INVALID LENGTH')
+                print(f'   📝 Expected: at least {expected_length} characters')
+                print(f'   📝 Actual: {len(value)} characters')
                 all_valid = False
         else:
             print(f'   ❌ Status: MISSING')

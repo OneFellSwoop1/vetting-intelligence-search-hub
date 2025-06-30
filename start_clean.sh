@@ -16,11 +16,11 @@ else
 fi
 
 # Verify the correct API key is loaded
-if [[ "$LDA_API_KEY" == "REDACTED_OLD_LDA_API_KEY" ]]; then
+if [[ "$LDA_API_KEY" == 065* ]]; then
     echo "✅ Correct LDA API key loaded: ${LDA_API_KEY:0:10}..."
 else
     echo "❌ ERROR: Wrong or missing API key!"
-    echo "   Expected: REDACTED_OLD_LDA_API_KEY"
+    echo "   Expected: Should start with '065'"
     echo "   Got:      ${LDA_API_KEY:-'NOT SET'}"
     exit 1
 fi

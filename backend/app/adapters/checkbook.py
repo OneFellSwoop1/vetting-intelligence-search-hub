@@ -19,7 +19,7 @@ class CheckbookNYCAdapter:
         self.base_url = "https://data.cityofnewyork.us/resource"
         self.api_key_id = os.getenv('SOCRATA_API_KEY_ID')
         self.api_key_secret = os.getenv('SOCRATA_API_KEY_SECRET')
-        self.app_token = os.getenv('SOCRATA_APP_TOKEN', 'REDACTED_OLD_SOCRATA_APP_TOKEN')  # Default to guide's token
+        self.app_token = os.getenv('SOCRATA_APP_TOKEN')  # Required from environment
         
         # Cache configuration
         self.cache_ttl = int(os.getenv('CHECKBOOK_CACHE_TTL', '3600'))  # 1 hour default
@@ -949,10 +949,34 @@ class CheckbookNYCAdapter:
         dataset_id = dataset["id"]
         limit = dataset.get("limit", 20)
         
-        # Build search conditions for vendor fields
+        # Preprocess query to extract key terms and make search more flexible
+        # Convert "Staples Inc" -> "Staples", "Apple Inc." -> "Apple", etc.
+        search_query = query.strip()
+        
+        # Remove common company suffixes to make search more flexible
+        company_suffixes = [
+            " Inc", " Inc.", " LLC", " LLC.", " Corp", " Corp.", 
+            " Corporation", " Company", " Co.", " Co", " Ltd", " Ltd.",
+            " Limited", " L.P.", " LP", " LLP"
+        ]
+        
+        for suffix in company_suffixes:
+            if search_query.endswith(suffix):
+                search_query = search_query[:-len(suffix)].strip()
+                break
+        
+        # If the original query had a suffix removed, also try a partial match approach
+        # This handles cases like "Staples Inc" where the actual name is "Staples Contract & Commercial Inc"
+        core_term = search_query.split()[0] if search_query else query  # Get the first word
+        
+        # Build search conditions for vendor fields with both full and core term
         vendor_conditions = []
         for field in dataset["vendor_fields"]:
-            vendor_conditions.append(f"upper({field}) like upper('%{query}%')")
+            # Primary search with preprocessed query
+            vendor_conditions.append(f"upper({field}) like upper('%{search_query}%')")
+            # Also search with core term if it's different from search_query
+            if core_term != search_query and len(core_term) >= 3:
+                vendor_conditions.append(f"upper({field}) like upper('%{core_term}%')")
         
         where_clause = " OR ".join(vendor_conditions)
         

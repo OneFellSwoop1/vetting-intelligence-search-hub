@@ -37,15 +37,15 @@ export $(cat backend/environment.env | grep -v '^#' | grep -v '^$' | xargs)
 echo "🔍 Step 5: Verifying API key correctness..."
 echo "   Current LDA_API_KEY: ${LDA_API_KEY:0:10}..."
 
-if [[ "$LDA_API_KEY" == "REDACTED_OLD_LDA_API_KEY" ]]; then
+    if [[ "$LDA_API_KEY" == 065* ]]; then
     echo "   ✅ CORRECT API key detected!"
 else
     echo "   ❌ API KEY ERROR!"
-    echo "   Expected: REDACTED_OLD_LDA_API_KEY"
+    echo "   Expected: Should start with '065'"
     echo "   Got:      ${LDA_API_KEY:-'NOT SET'}"
     echo ""
     echo "   Please check backend/environment.env and ensure it contains:"
-    echo "   LDA_API_KEY=REDACTED_OLD_LDA_API_KEY"
+    echo "   LDA_API_KEY=<your-api-key-starting-with-065>"
     exit 1
 fi
 

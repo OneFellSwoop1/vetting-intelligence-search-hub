@@ -74,7 +74,7 @@ To verify your environment setup:
 
 The application uses the **correct** API key from `backend/environment.env`:
 ```
-LDA_API_KEY=REDACTED_OLD_LDA_API_KEY
+LDA_API_KEY=your_lda_api_key_starting_with_065
 ```
 
 **Important**: Always use the startup scripts instead of manually exporting API keys to avoid authentication errors.
@@ -157,7 +157,7 @@ If you encounter issues:
    # Test API key
    export $(cat backend/environment.env | grep -v '^#' | grep -v '^$' | xargs)
    echo $LDA_API_KEY
-   # Should show: REDACTED_OLD_LDA_API_KEY
+   # Should show: your API key starting with 065
    ```
 
 ## 🔐 Security Notes
