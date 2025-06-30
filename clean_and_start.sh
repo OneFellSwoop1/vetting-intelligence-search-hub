@@ -26,7 +26,7 @@ else
 fi
 
 # Verify the API key is correct
-if [[ "$LDA_API_KEY" == "065af08d580cf15c2220836fb456a5ebe504186c" ]]; then
+if [[ "$LDA_API_KEY" == 065* ]]; then
     echo "✅ Correct LDA API key detected: ${LDA_API_KEY:0:8}..."
 else
     echo "❌ API key verification failed!"

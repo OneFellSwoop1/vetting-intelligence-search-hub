@@ -7,7 +7,7 @@ echo "🔍 Checking environment for API key issues..."
 
 # Check current shell environment
 if [ -n "$LDA_API_KEY" ]; then
-    if [[ "$LDA_API_KEY" == "065af08d580cf15c2220836fb456a5ebe504186c" ]]; then
+    if [[ "$LDA_API_KEY" == 065* ]]; then
         echo "✅ Shell environment has correct API key"
     else
         echo "❌ Shell environment has wrong API key!"
@@ -21,7 +21,7 @@ fi
 # Check environment file
 if [ -f "backend/environment.env" ]; then
     env_key=$(grep "^LDA_API_KEY=" backend/environment.env | cut -d'=' -f2)
-    if [[ "$env_key" == "065af08d580cf15c2220836fb456a5ebe504186c" ]]; then
+    if [[ "$env_key" == 065* ]]; then
         echo "✅ environment.env has correct API key"
     else
         echo "❌ environment.env has wrong API key!"

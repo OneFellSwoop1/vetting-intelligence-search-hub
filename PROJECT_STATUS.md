@@ -17,7 +17,7 @@
 - All startup scripts
 - Documentation files
 
-**Correct API Key:** `065af08d580cf15c2220836fb456a5ebe504186c` (with leading zero)
+**Correct API Key:** Should start with `065` (contact admin for full key)
 
 ---
 

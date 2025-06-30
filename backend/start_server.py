@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 def main():
     # Set environment variables
-    os.environ['LDA_API_KEY'] = '065af08d580cf15c2220836fb456a5ebe504186c'
+    # Load API key from environment.env file
+    from dotenv import load_dotenv
+    load_dotenv('environment.env')
     
     logger.info("Starting Vetting Intelligence Search Hub backend...")
     logger.info(f"API Key set: {bool(os.environ.get('LDA_API_KEY'))}")

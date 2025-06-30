@@ -406,9 +406,9 @@ asyncio.run(test())
 
 ```bash
 # NYC Checkbook / Socrata API
-SOCRATA_API_KEY_ID=90d81emkbs10ht4iy25rpqs8u
-SOCRATA_API_KEY_SECRET=4pajtcdkz6wisx6nx1mpayntogwxtzdie3944au2u2nvkeskvv
-SOCRATA_APP_TOKEN=2UYrUskVvUcZM1VR5e06dvfV
+SOCRATA_API_KEY_ID=your_socrata_key_id
+SOCRATA_API_KEY_SECRET=your_socrata_key_secret
+SOCRATA_APP_TOKEN=your_socrata_app_token
 CHECKBOOK_BASE_URL=https://data.cityofnewyork.us/resource
 CHECKBOOK_RATE_LIMIT=2.0
 
@@ -488,9 +488,9 @@ The application uses Socrata API for NYC Checkbook data:
 
 ```env
 # NYC Open Data / Socrata API Credentials (for NYC Checkbook data)
-SOCRATA_API_KEY_ID=90d81emkbs10ht4iy25rpqs8u
-SOCRATA_API_KEY_SECRET=4pajtcdkz6wisx6nx1mpayntogwxtzdie3944au2u2nvkeskvv
-SOCRATA_APP_TOKEN=XF40HzCEpiKz98H9M8N2TZ7s9
+SOCRATA_API_KEY_ID=your_socrata_key_id
+SOCRATA_API_KEY_SECRET=your_socrata_key_secret
+SOCRATA_APP_TOKEN=your_socrata_app_token
 ```
 
 **Important Notes:**
@@ -627,9 +627,9 @@ asyncio.run(test())
 
 ```bash
 # NYC Checkbook / Socrata API
-SOCRATA_API_KEY_ID=90d81emkbs10ht4iy25rpqs8u
-SOCRATA_API_KEY_SECRET=4pajtcdkz6wisx6nx1mpayntogwxtzdie3944au2u2nvkeskvv
-SOCRATA_APP_TOKEN=2UYrUskVvUcZM1VR5e06dvfV
+SOCRATA_API_KEY_ID=your_socrata_key_id
+SOCRATA_API_KEY_SECRET=your_socrata_key_secret
+SOCRATA_APP_TOKEN=your_socrata_app_token
 CHECKBOOK_BASE_URL=https://data.cityofnewyork.us/resource
 CHECKBOOK_RATE_LIMIT=2.0
 
