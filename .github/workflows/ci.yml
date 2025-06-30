@@ -10,6 +10,17 @@ jobs:
   test-backend:
     runs-on: ubuntu-latest
     
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     steps:
     - uses: actions/checkout@v3
     
@@ -23,12 +34,24 @@ jobs:
         cd backend
         pip install -r requirements.txt
     
+    - name: Wait for Redis
+      run: |
+        timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
+    
     - name: Check imports and basic functionality
       run: |
         cd backend
         python -c "from app.main import app; print('✅ Backend imports successful')"
       env:
-        LDA_API_KEY: 'dummy_key_for_testing'
+        # Dummy API keys for testing (CI environment)
+        LDA_API_KEY: 'dummy_key_for_testing_12345678901234567890'
+        SOCRATA_API_KEY_ID: 'dummy_socrata_key_id_12345'
+        SOCRATA_API_KEY_SECRET: 'dummy_socrata_secret_12345678901234567890123456789012345678'
+        SOCRATA_APP_TOKEN: 'dummy_app_token_12345678'
+        # Optional environment variables
+        ENVIRONMENT: 'test'
+        LOG_LEVEL: 'INFO'
+        REDIS_URL: 'redis://localhost:6379/0'
 
   test-frontend:
     runs-on: ubuntu-latest
