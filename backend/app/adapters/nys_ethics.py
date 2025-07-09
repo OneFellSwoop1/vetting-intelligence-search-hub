@@ -258,18 +258,19 @@ class NYSEthicsAdapter:
         try:
             url = f"{self.base_url}/{dataset_id}.json"
             
-            # Optimized query parameters - search both client name fields
-            query_upper = query.upper()
-            where_clause = f"upper(contractual_client_name) like upper('%{query_upper}%') OR upper(beneficial_client_name) like upper('%{query_upper}%')"
+            # FIXED: Proper query parameters with correct encoding
+            query_clean = query.replace("'", "''")  # Escape single quotes
             
-            if year:
-                where_clause += f" AND reporting_year = '{year}'"
-            
+            # Use simpler text search instead of complex LIKE queries
             params = {
-                "$limit": "15",  # Smaller limit for faster response
-                "$where": where_clause,
-                "$order": "reporting_year DESC"  # Get most recent first
+                "$limit": "15",
+                "$q": query_clean,  # Use simple text search
+                "$order": "reporting_year DESC"
             }
+            
+            # Add year filter if provided
+            if year:
+                params["reporting_year"] = str(year)
             
             headers = self._get_auth_headers()
             
