@@ -154,8 +154,8 @@ async def search(
         if source == "checkbook":
             search_tasks.append(("checkbook", checkbook_adapter.search(request.query, year_int)))
         elif source == "nys_ethics":
-            # Use ultra-fast mode for multi-source searches to prevent timeouts
-            search_tasks.append(("nys_ethics", nys_ethics_adapter.search(request.query, year_int, ultra_fast_mode=is_multi_source)))
+            # FIXED: Disable ultra-fast mode to use real NY State API instead of hardcoded results
+            search_tasks.append(("nys_ethics", nys_ethics_adapter.search(request.query, year_int, ultra_fast_mode=False)))
         elif source == "senate_lda":
             search_tasks.append(("senate_lda", senate_lda_adapter.search(request.query, year_int)))
         elif source == "nyc_lobbyist":

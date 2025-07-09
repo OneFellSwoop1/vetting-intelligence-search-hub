@@ -890,22 +890,17 @@ class CheckbookNYCAdapter:
             return cached_results
         
         try:
-            # Use only the working datasets to avoid rate limiting
+            # FIXED: Use only contract/vendor datasets, exclude payroll data for vendor searches
             working_datasets = [
-                {
-                    "id": "k397-673e",  # Citywide Payroll Data - WORKING
-                    "name": "Citywide Payroll Data",
-                    "vendor_fields": ["agency_name", "first_name", "last_name"],
-                    "amount_fields": ["base_salary", "regular_gross_paid", "total_ot_paid"],
-                    "limit": 20
-                },
                 {
                     "id": "qyyg-4tf5",  # Recent Contract Awards - WORKING  
                     "name": "Recent Contract Awards",
                     "vendor_fields": ["vendor_name"],
                     "amount_fields": ["contract_amount"],
-                    "limit": 40
+                    "limit": 50
                 }
+                # REMOVED: k397-673e Citywide Payroll Data - inappropriate for vendor searches
+                # This was causing employee records to show up instead of actual contracts
             ]
             
             all_results = []
@@ -949,8 +944,7 @@ class CheckbookNYCAdapter:
         dataset_id = dataset["id"]
         limit = dataset.get("limit", 20)
         
-        # Preprocess query to extract key terms and make search more flexible
-        # Convert "Staples Inc" -> "Staples", "Apple Inc." -> "Apple", etc.
+        # FIXED: Improved query processing for better precision with multi-word entity names
         search_query = query.strip()
         
         # Remove common company suffixes to make search more flexible
@@ -965,17 +959,25 @@ class CheckbookNYCAdapter:
                 search_query = search_query[:-len(suffix)].strip()
                 break
         
-        # If the original query had a suffix removed, also try a partial match approach
-        # This handles cases like "Staples Inc" where the actual name is "Staples Contract & Commercial Inc"
-        core_term = search_query.split()[0] if search_query else query  # Get the first word
+        # FIXED: Better logic for multi-word entity names like "Bolton St John"
+        # Only extract core term for single-word company suffixes, not person/firm names
+        should_use_core_term = False
+        core_term = None
         
-        # Build search conditions for vendor fields with both full and core term
+        # Only use core term logic for queries that became single words after suffix removal
+        if len(search_query.split()) == 1 and search_query != query and len(search_query) >= 3:
+            core_term = search_query
+            should_use_core_term = True
+        
+        # Build search conditions for vendor fields
         vendor_conditions = []
         for field in dataset["vendor_fields"]:
-            # Primary search with preprocessed query
+            # Primary search with full preprocessed query (most important)
             vendor_conditions.append(f"upper({field}) like upper('%{search_query}%')")
-            # Also search with core term if it's different from search_query
-            if core_term != search_query and len(core_term) >= 3:
+            
+            # FIXED: Only add core term for appropriate single-word cases
+            # This prevents "Bolton St John" from matching "Bolton" employees
+            if should_use_core_term and core_term:
                 vendor_conditions.append(f"upper({field}) like upper('%{core_term}%')")
         
         where_clause = " OR ".join(vendor_conditions)

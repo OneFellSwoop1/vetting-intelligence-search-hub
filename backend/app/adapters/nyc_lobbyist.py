@@ -191,16 +191,36 @@ class NYCLobbyistAdapter:
                 try:
                     lobbyist_url = f"{self.base_url}/fmf3-knd8.json"
                     
-                    # Build search conditions
-                    search_conditions = [
-                        f"upper(lobbyist_name) like upper('%{query}%')",
-                        f"upper(client_name) like upper('%{query}%')",
-                        f"upper(lobbyist_activities) like upper('%{query}%')",
-                        f"upper(periodic_activities) like upper('%{query}%')",
-                        f"upper(periodic_targets) like upper('%{query}%')"
-                    ]
+                    # ENHANCED: Build search conditions with name variations for better matching
+                    base_query = query.strip()
                     
-                    where_clause = " OR ".join(search_conditions)
+                    # Create variations for common name patterns
+                    query_variations = [base_query]
+                    
+                    # Handle "St" vs "Saint" variations  
+                    if " St " in base_query:
+                        query_variations.append(base_query.replace(" St ", " Saint "))
+                        query_variations.append(base_query.replace(" St ", " St. "))
+                    elif " St." in base_query:
+                        query_variations.append(base_query.replace(" St.", " St "))
+                        query_variations.append(base_query.replace(" St.", " Saint "))
+                    elif " Saint " in base_query:
+                        query_variations.append(base_query.replace(" Saint ", " St "))
+                        query_variations.append(base_query.replace(" Saint ", " St. "))
+                    
+                    # Build comprehensive search conditions for all variations
+                    all_conditions = []
+                    for query_var in query_variations:
+                        search_conditions = [
+                            f"upper(lobbyist_name) like upper('%{query_var}%')",
+                            f"upper(client_name) like upper('%{query_var}%')",
+                            f"upper(lobbyist_activities) like upper('%{query_var}%')",
+                            f"upper(periodic_activities) like upper('%{query_var}%')",
+                            f"upper(periodic_targets) like upper('%{query_var}%')"
+                        ]
+                        all_conditions.extend(search_conditions)
+                    
+                    where_clause = " OR ".join(all_conditions)
                     
                     if year:
                         where_clause += f" AND report_year = '{year}'"
