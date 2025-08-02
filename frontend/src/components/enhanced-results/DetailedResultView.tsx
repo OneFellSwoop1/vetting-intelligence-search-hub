@@ -1,31 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
+  X, 
   ExternalLink, 
   Calendar, 
   DollarSign, 
   Building, 
-  ChevronDown,
-  ChevronRight,
-  Download,
-  Share2,
-  Copy,
+  User, 
+  TrendingUp, 
+  Target, 
   MapPin,
-  User,
+  Clock,
+  Copy,
+  ArrowRight,
+  BarChart3,
+  PieChart,
+  Activity,
+  Users,
   FileText,
-  Gavel,
-  Building2,
-  CreditCard,
-  Phone,
-  Mail,
-  Globe,
-  Hash,
-  Clock
+  Shield,
+  AlertCircle,
+  CheckCircle,
+  Info
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface SearchResult {
+  id?: string;
   title: string;
   description: string;
   amount?: string | number;
@@ -35,116 +35,135 @@ interface SearchResult {
   agency?: string;
   url?: string;
   record_type?: string;
-  client_count?: number;
-  registration_count?: number;
+  client?: string;
+  lobbyist?: string;
+  subjects?: string;
+  period?: string;
+  relationship_type?: string;
   year?: string;
-  
-  // Additional fields that might be present in different sources
   contract_id?: string;
-  contract_amount?: string;
-  start_date?: string;
-  end_date?: string;
-  award_method?: string;
-  commodity_category?: string;
-  
-  // Senate/House LDA specific
-  filing_date?: string;
-  filing_period?: string;
-  client_name?: string;
-  registrant_name?: string;
-  lobbying_issues?: string;
-  lobbying_areas?: string[];
-  
-  // FEC specific
-  contributor_name?: string;
-  recipient_name?: string;
-  contribution_date?: string;
-  election_cycle?: string;
-  committee_type?: string;
-  
-  // NYC Lobbyist specific
-  lobbyist_name?: string;
-  client_business_address?: string;
-  compensation_amount?: string;
-  expense_amount?: string;
-  
-  // NY State Ethics specific
-  procurement_type?: string;
-  buyer_agency?: string;
-  award_date?: string;
+  raw_data?: any;
+  [key: string]: any;
 }
 
 interface DetailedResultViewProps {
   result: SearchResult;
-  onClose?: () => void;
+  onClose: () => void;
   className?: string;
+  relatedResults?: SearchResult[];
 }
 
+// Enhanced source configuration with more details
 const sourceConfig = {
-  checkbook: { 
-    name: 'NYC Contracts', 
-    color: 'bg-blue-100 text-blue-800',
+  senate_lda: {
+    name: 'Federal Lobbying (Senate)',
+    color: 'bg-blue-50 border-blue-200 text-blue-800',
     icon: '🏛️',
-    baseUrl: 'https://checkbook.nyc.gov',
-    description: 'New York City government contracts and spending'
-  },
-  dbnyc: { 
-    name: 'FEC Campaign Finance', 
-    color: 'bg-green-100 text-green-800',
-    icon: '🗳️',
-    baseUrl: 'https://www.fec.gov',
-    description: 'Federal Election Commission campaign finance data'
-  },
-  nys_ethics: { 
-    name: 'NY State Ethics', 
-    color: 'bg-purple-100 text-purple-800',
-    icon: '⚖️',
-    baseUrl: 'https://ethics.ny.gov',
-    description: 'New York State ethics and procurement records'
-  },
-  senate_lda: { 
-    name: 'Senate LDA', 
-    color: 'bg-red-100 text-red-800',
-    icon: '🏛️',
+    badgeColor: 'bg-blue-100 text-blue-700',
     baseUrl: 'https://lda.senate.gov',
     description: 'Senate Lobbying Disclosure Act filings'
   },
-  house_lda: { 
-    name: 'House LDA', 
-    color: 'bg-orange-100 text-orange-800',
+  house_lda: {
+    name: 'Federal Lobbying (House)',
+    color: 'bg-purple-50 border-purple-200 text-purple-800',
     icon: '🏛️',
+    badgeColor: 'bg-purple-100 text-purple-700',
     baseUrl: 'https://disclosurespreview.house.gov',
     description: 'House Lobbying Disclosure Act filings'
   },
-  nyc_lobbyist: { 
-    name: 'NYC Lobbyist', 
-    color: 'bg-indigo-100 text-indigo-800',
-    icon: '🏢',
-    baseUrl: 'https://www.nyc.gov/site/coib',
-    description: 'NYC Conflicts of Interest Board lobbyist registrations'
+  checkbook: {
+    name: 'NYC Contracts & Spending',
+    color: 'bg-green-50 border-green-200 text-green-800',
+    icon: '🏙️',
+    badgeColor: 'bg-green-100 text-green-700',
+    baseUrl: 'https://checkbook.nyc.gov',
+    description: 'New York City financial transactions'
+  },
+  nyc_lobbyist: {
+    name: 'NYC Lobbying',
+    color: 'bg-cyan-50 border-cyan-200 text-cyan-800',
+    icon: '🗽',
+    badgeColor: 'bg-cyan-100 text-cyan-700',
+    baseUrl: 'https://www.nyc.gov/site/coib/lobbying',
+    description: 'NYC lobbying registrations and activities'
+  },
+  nys_ethics: {
+    name: 'NY State Ethics',
+    color: 'bg-orange-50 border-orange-200 text-orange-800',
+    icon: '⚖️',
+    badgeColor: 'bg-orange-100 text-orange-700',
+    baseUrl: 'https://www.ethics.ny.gov',
+    description: 'New York State lobbying and ethics'
+  },
+  dbnyc: {
+    name: 'Federal Contracts',
+    color: 'bg-red-50 border-red-200 text-red-800',
+    icon: '📊',
+    badgeColor: 'bg-red-100 text-red-700',
+    baseUrl: 'https://www.usaspending.gov',
+    description: 'Federal government spending data'
   }
 };
 
 const DetailedResultView: React.FC<DetailedResultViewProps> = ({ 
   result, 
   onClose, 
-  className 
+  className,
+  relatedResults = []
 }) => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     overview: true,
     financial: true,
-    parties: true,
-    details: false,
-    metadata: false
+    activities: true,
+    timeline: true,
+    relationships: true,
+    technical: false
   });
 
   const sourceInfo = sourceConfig[result.source as keyof typeof sourceConfig] || {
     name: result.source,
-    color: 'bg-gray-100 text-gray-800',
+    color: 'bg-gray-50 border-gray-200 text-gray-800',
     icon: '📄',
+    badgeColor: 'bg-gray-100 text-gray-700',
     baseUrl: '',
     description: 'Government data source'
   };
+
+  // Enhanced data analysis
+  const analysisData = useMemo(() => {
+    const amount = typeof result.amount === 'number' ? result.amount : 
+                   typeof result.amount === 'string' ? parseFloat(result.amount.replace(/[$,]/g, '')) || 0 : 0;
+    
+    // Financial analysis
+    const financialMetrics = {
+      totalAmount: amount,
+      amountCategory: amount >= 1000000 ? 'High Value' : amount >= 100000 ? 'Medium Value' : 'Standard',
+      riskLevel: amount >= 1000000 ? 'high' : amount >= 100000 ? 'medium' : 'low',
+      formattedAmount: amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    };
+
+    // Activity analysis
+    const activityType = result.source.includes('lobbyist') || result.source.includes('lda') ? 'lobbying' : 'financial';
+    const recordAge = result.date ? new Date().getFullYear() - new Date(result.date).getFullYear() : 0;
+    
+    // Relationship analysis
+    const keyEntities = {
+      primaryEntity: result.vendor || result.client || 'Unknown',
+      secondaryEntity: result.agency || result.lobbyist || 'Unknown',
+      relationship: result.relationship_type || 'Business Relationship'
+    };
+
+    return {
+      financial: financialMetrics,
+      activity: { type: activityType, age: recordAge },
+      entities: keyEntities,
+      compliance: {
+        hasUrl: !!result.url,
+        hasDocumentation: !!(result.contract_id || result.raw_data),
+        isRecent: recordAge <= 2
+      }
+    };
+  }, [result]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({
@@ -155,28 +174,6 @@ const DetailedResultView: React.FC<DetailedResultViewProps> = ({
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-  };
-
-  const generateDirectLink = () => {
-    if (result.url) return result.url;
-    
-    // Generate best-effort direct links based on source
-    switch (result.source) {
-      case 'senate_lda':
-        return 'https://lda.senate.gov/filings/public/';
-      case 'house_lda':
-        return 'https://disclosurespreview.house.gov/';
-      case 'checkbook':
-        return 'https://checkbook.nyc.gov/spending_landing/yeartype/B/year/2024';
-      case 'dbnyc':
-        return 'https://www.fec.gov/data/';
-      case 'nys_ethics':
-        return 'https://www.ethics.ny.gov/';
-      case 'nyc_lobbyist':
-        return 'https://www.nyc.gov/site/coib/lobbying/lobbyist-search.page';
-      default:
-        return sourceInfo.baseUrl;
-    }
   };
 
   const formatAmount = (amount: string | number | undefined) => {
@@ -190,294 +187,379 @@ const DetailedResultView: React.FC<DetailedResultViewProps> = ({
   const formatDate = (date: string | undefined) => {
     if (!date) return 'N/A';
     try {
-      return new Date(date).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
     } catch {
       return date;
     }
   };
 
-  const SectionHeader = ({ title, isExpanded, onToggle, icon }: {
-    title: string;
-    isExpanded: boolean;
-    onToggle: () => void;
-    icon: React.ReactNode;
-  }) => (
-    <button
-      onClick={onToggle}
-      className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors border-b"
-    >
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="font-medium text-gray-900">{title}</span>
-      </div>
-      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-    </button>
-  );
-
-  const InfoRow = ({ label, value, icon, copyable = false }: {
-    label: string;
-    value: string | number | undefined;
-    icon?: React.ReactNode;
-    copyable?: boolean;
-  }) => {
-    if (!value) return null;
-    
-    return (
-      <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          {icon}
-          <span>{label}:</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900">{value}</span>
-          {copyable && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copyToClipboard(String(value))}
-              className="h-6 w-6 p-0"
-            >
-              <Copy className="w-3 h-3" />
-            </Button>
-          )}
-        </div>
-      </div>
-    );
+  const generateDirectLink = () => {
+    if (result.url) return result.url;
+    return sourceInfo.baseUrl;
   };
 
+  const SectionHeader = ({ title, icon: Icon, expanded, onToggle, badge }: any) => (
+    <div 
+      className="flex items-center justify-between p-4 bg-gray-50 border-b cursor-pointer hover:bg-gray-100 transition-colors"
+      onClick={onToggle}
+    >
+      <div className="flex items-center gap-3">
+        <Icon className="w-5 h-5 text-gray-600" />
+        <h3 className="font-semibold text-gray-900">{title}</h3>
+        {badge && (
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${badge.className}`}>
+            {badge.text}
+          </span>
+        )}
+      </div>
+      <div className={`transform transition-transform ${expanded ? 'rotate-90' : ''}`}>
+        <ArrowRight className="w-4 h-4 text-gray-400" />
+      </div>
+    </div>
+  );
+
   return (
-    <div className={cn("bg-white border border-gray-200 rounded-lg shadow-lg", className)}>
-      {/* Header */}
-      <div className="border-b border-gray-200 p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className={cn("px-3 py-1 rounded-full text-sm font-medium", sourceInfo.color)}>
-              {sourceInfo.icon} {sourceInfo.name}
+    <div className={cn("fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50", className)}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start justify-between p-6 border-b bg-white">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">{sourceInfo.icon}</span>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 leading-tight">
+                  {result.title}
+                </h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={cn("inline-flex items-center px-3 py-1 rounded-full text-sm font-medium", sourceInfo.badgeColor)}>
+                    {sourceInfo.name}
+                  </span>
+                  {analysisData.financial.riskLevel === 'high' && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      High Value
+                    </span>
+                  )}
+                  {analysisData.compliance.isRecent && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Recent
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            {result.record_type && (
-              <div className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                {result.record_type}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+          
+          {/* Overview Section */}
+          <div className="border-b">
+            <SectionHeader
+              title="Overview"
+              icon={Info}
+              expanded={expandedSections.overview}
+              onToggle={() => toggleSection('overview')}
+            />
+            {expandedSections.overview && (
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <User className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-900">Primary Entity</span>
+                    </div>
+                    <p className="font-semibold text-blue-900">{analysisData.entities.primaryEntity}</p>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-900">Agency/Target</span>
+                    </div>
+                    <p className="font-semibold text-green-900">{analysisData.entities.secondaryEntity}</p>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Shield className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm font-medium text-purple-900">Relationship</span>
+                    </div>
+                    <p className="font-semibold text-purple-900">{analysisData.entities.relationship}</p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-gray-700 leading-relaxed">{result.description}</p>
+                </div>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copyToClipboard(window.location.href)}
-            >
-              <Share2 className="w-4 h-4 mr-1" />
-              Share
-            </Button>
-            {onClose && (
-              <Button variant="outline" size="sm" onClick={onClose}>
-                Close
-              </Button>
+
+          {/* Financial Analysis Section */}
+          <div className="border-b">
+            <SectionHeader
+              title="Financial Analysis"
+              icon={DollarSign}
+              expanded={expandedSections.financial}
+              onToggle={() => toggleSection('financial')}
+              badge={{
+                text: analysisData.financial.amountCategory,
+                className: analysisData.financial.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
+                          analysisData.financial.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-green-100 text-green-700'
+              }}
+            />
+            {expandedSections.financial && (
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3">Transaction Details</h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Amount:</span>
+                        <span className="font-semibold text-green-600 text-lg">{analysisData.financial.formattedAmount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Date:</span>
+                        <span className="font-medium">{formatDate(result.date)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Fiscal Year:</span>
+                        <span className="font-medium">{result.year || 'N/A'}</span>
+                      </div>
+                      {result.contract_id && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Contract ID:</span>
+                          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                            {result.contract_id}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3">Risk Assessment</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Value Category:</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          analysisData.financial.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
+                          analysisData.financial.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-green-100 text-green-700'
+                        }`}>
+                          {analysisData.financial.amountCategory}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Documentation:</span>
+                        <span className={`flex items-center gap-1 ${analysisData.compliance.hasDocumentation ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {analysisData.compliance.hasDocumentation ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                          {analysisData.compliance.hasDocumentation ? 'Complete' : 'Limited'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Data Freshness:</span>
+                        <span className={`flex items-center gap-1 ${analysisData.compliance.isRecent ? 'text-green-600' : 'text-gray-600'}`}>
+                          <Clock className="w-4 h-4" />
+                          {analysisData.compliance.isRecent ? 'Recent' : `${analysisData.activity.age} years old`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-        </div>
-        
-        <h1 className="text-xl font-bold text-gray-900 mb-2">{result.title}</h1>
-        <p className="text-gray-600 leading-relaxed">{result.description}</p>
-        
-        {/* Quick Stats */}
-        <div className="flex items-center gap-6 mt-4 pt-4 border-t border-gray-100">
-          {result.amount && (
-            <div className="flex items-center gap-2 text-green-600">
-              <DollarSign className="w-4 h-4" />
-              <span className="font-semibold">{formatAmount(result.amount)}</span>
-            </div>
-          )}
-          {result.date && (
-            <div className="flex items-center gap-2 text-gray-600">
-              <Calendar className="w-4 h-4" />
-              <span>{formatDate(result.date)}</span>
-            </div>
-          )}
-          {result.agency && (
-            <div className="flex items-center gap-2 text-gray-600">
-              <Building className="w-4 h-4" />
-              <span>{result.agency}</span>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Overview Section */}
-      <div className="border-b border-gray-200">
-        <SectionHeader
-          title="Overview"
-          isExpanded={expandedSections.overview}
-          onToggle={() => toggleSection('overview')}
-          icon={<FileText className="w-4 h-4" />}
-        />
-        {expandedSections.overview && (
-          <div className="p-4 space-y-2">
-            <InfoRow label="Source" value={sourceInfo.description} icon={<Globe className="w-4 h-4" />} />
-            <InfoRow label="Record Type" value={result.record_type} icon={<Hash className="w-4 h-4" />} />
-            <InfoRow label="Year" value={result.year} icon={<Clock className="w-4 h-4" />} />
-            {result.contract_id && (
-              <InfoRow 
-                label="Contract ID" 
-                value={result.contract_id} 
-                icon={<Hash className="w-4 h-4" />} 
-                copyable 
+          {/* Activities & Lobbying Section */}
+          {analysisData.activity.type === 'lobbying' && (
+            <div className="border-b">
+              <SectionHeader
+                title="Lobbying Activities"
+                icon={Target}
+                expanded={expandedSections.activities}
+                onToggle={() => toggleSection('activities')}
               />
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Financial Information */}
-      {(result.amount || result.contract_amount || result.compensation_amount) && (
-        <div className="border-b border-gray-200">
-          <SectionHeader
-            title="Financial Information"
-            isExpanded={expandedSections.financial}
-            onToggle={() => toggleSection('financial')}
-            icon={<DollarSign className="w-4 h-4" />}
-          />
-          {expandedSections.financial && (
-            <div className="p-4 space-y-2">
-              <InfoRow label="Amount" value={formatAmount(result.amount)} icon={<DollarSign className="w-4 h-4" />} />
-              <InfoRow label="Contract Amount" value={formatAmount(result.contract_amount)} icon={<CreditCard className="w-4 h-4" />} />
-              <InfoRow label="Compensation" value={formatAmount(result.compensation_amount)} icon={<DollarSign className="w-4 h-4" />} />
-              <InfoRow label="Expenses" value={formatAmount(result.expense_amount)} icon={<DollarSign className="w-4 h-4" />} />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Parties Involved */}
-      {(result.vendor || result.client_name || result.contributor_name || result.lobbyist_name) && (
-        <div className="border-b border-gray-200">
-          <SectionHeader
-            title="Parties Involved"
-            isExpanded={expandedSections.parties}
-            onToggle={() => toggleSection('parties')}
-            icon={<User className="w-4 h-4" />}
-          />
-          {expandedSections.parties && (
-            <div className="p-4 space-y-2">
-              <InfoRow label="Vendor" value={result.vendor} icon={<Building2 className="w-4 h-4" />} />
-              <InfoRow label="Client" value={result.client_name} icon={<User className="w-4 h-4" />} />
-              <InfoRow label="Contributor" value={result.contributor_name} icon={<User className="w-4 h-4" />} />
-              <InfoRow label="Recipient" value={result.recipient_name} icon={<User className="w-4 h-4" />} />
-              <InfoRow label="Lobbyist" value={result.lobbyist_name} icon={<User className="w-4 h-4" />} />
-              <InfoRow label="Registrant" value={result.registrant_name} icon={<Building2 className="w-4 h-4" />} />
-              {result.client_business_address && (
-                <InfoRow 
-                  label="Address" 
-                  value={result.client_business_address} 
-                  icon={<MapPin className="w-4 h-4" />} 
-                />
+              {expandedSections.activities && (
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3">Lobbying Details</h4>
+                      <div className="space-y-3">
+                        {result.subjects && (
+                          <div>
+                            <span className="text-gray-600 block mb-1">Subjects:</span>
+                            <span className="font-medium">{result.subjects}</span>
+                          </div>
+                        )}
+                        {result.period && (
+                          <div>
+                            <span className="text-gray-600 block mb-1">Reporting Period:</span>
+                            <span className="font-medium">{result.period}</span>
+                          </div>
+                        )}
+                        {result.lobbyist && (
+                          <div>
+                            <span className="text-gray-600 block mb-1">Lobbyist:</span>
+                            <span className="font-medium">{result.lobbyist}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3">Activity Summary</h4>
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Activity className="w-4 h-4 text-blue-600" />
+                          <span className="font-medium text-blue-900">Activity Type</span>
+                        </div>
+                        <p className="text-blue-800 capitalize">{result.record_type?.replace('_', ' ') || 'Lobbying Activity'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
+
+          {/* Timeline Section */}
+          <div className="border-b">
+            <SectionHeader
+              title="Timeline & Context"
+              icon={Calendar}
+              expanded={expandedSections.timeline}
+              onToggle={() => toggleSection('timeline')}
+            />
+            {expandedSections.timeline && (
+              <div className="p-6">
+                <div className="relative">
+                  <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                  <div className="space-y-4">
+                    <div className="relative flex items-start gap-4">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center relative z-10">
+                        <Calendar className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900">Record Date</h5>
+                        <p className="text-sm text-gray-600">{formatDate(result.date)}</p>
+                      </div>
+                    </div>
+                    <div className="relative flex items-start gap-4">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center relative z-10">
+                        <FileText className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900">Data Source</h5>
+                        <p className="text-sm text-gray-600">{sourceInfo.description}</p>
+                      </div>
+                    </div>
+                    <div className="relative flex items-start gap-4">
+                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center relative z-10">
+                        <TrendingUp className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900">Activity Status</h5>
+                        <p className="text-sm text-gray-600">
+                          {analysisData.compliance.isRecent ? 'Active/Recent' : 'Historical Record'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Technical Details Section */}
+          <div className="border-b">
+            <SectionHeader
+              title="Technical Details"
+              icon={FileText}
+              expanded={expandedSections.technical}
+              onToggle={() => toggleSection('technical')}
+            />
+            {expandedSections.technical && (
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3">All Available Fields</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-auto">
+                      <dl className="space-y-2">
+                        {Object.entries(result).map(([key, value]) => {
+                          if (key === 'raw_data' || !value) return null;
+                          
+                          const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                          const displayValue = Array.isArray(value) ? value.join(', ') :
+                                             typeof value === 'object' ? JSON.stringify(value) :
+                                             String(value);
+
+                          return (
+                            <div key={key} className="flex gap-4">
+                              <dt className="text-sm font-medium text-gray-600 min-w-24 flex-shrink-0">
+                                {displayKey}:
+                              </dt>
+                              <dd className="text-sm text-gray-900 break-words flex-1">
+                                {displayValue.length > 100 ? 
+                                  `${displayValue.substring(0, 100)}...` : 
+                                  displayValue
+                                }
+                              </dd>
+                            </div>
+                          );
+                        })}
+                      </dl>
+                    </div>
+                  </div>
+                  
+                  {result.raw_data && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3">Raw API Data</h4>
+                      <div className="bg-gray-900 text-green-400 rounded-lg p-4 max-h-64 overflow-auto text-xs font-mono">
+                        <pre>{JSON.stringify(result.raw_data, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
-      )}
 
-      {/* Additional Details */}
-      <div className="border-b border-gray-200">
-        <SectionHeader
-          title="Additional Details"
-          isExpanded={expandedSections.details}
-          onToggle={() => toggleSection('details')}
-          icon={<FileText className="w-4 h-4" />}
-        />
-        {expandedSections.details && (
-          <div className="p-4 space-y-2">
-            <InfoRow label="Award Method" value={result.award_method} icon={<Gavel className="w-4 h-4" />} />
-            <InfoRow label="Commodity Category" value={result.commodity_category} icon={<FileText className="w-4 h-4" />} />
-            <InfoRow label="Procurement Type" value={result.procurement_type} icon={<FileText className="w-4 h-4" />} />
-            <InfoRow label="Filing Period" value={result.filing_period} icon={<Calendar className="w-4 h-4" />} />
-            <InfoRow label="Election Cycle" value={result.election_cycle} icon={<Calendar className="w-4 h-4" />} />
-            <InfoRow label="Committee Type" value={result.committee_type} icon={<Building className="w-4 h-4" />} />
-            {result.lobbying_issues && (
-              <div className="py-2">
-                <div className="text-sm text-gray-600 mb-2">Lobbying Issues:</div>
-                <div className="text-sm text-gray-900 bg-gray-50 p-3 rounded">
-                  {result.lobbying_issues}
-                </div>
-              </div>
-            )}
-            {result.lobbying_areas && result.lobbying_areas.length > 0 && (
-              <div className="py-2">
-                <div className="text-sm text-gray-600 mb-2">Lobbying Areas:</div>
-                <div className="flex flex-wrap gap-2">
-                  {result.lobbying_areas.map((area, index) => (
-                    <span 
-                      key={index}
-                      className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded"
-                    >
-                      {area}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Metadata */}
-      <div>
-        <SectionHeader
-          title="Metadata"
-          isExpanded={expandedSections.metadata}
-          onToggle={() => toggleSection('metadata')}
-          icon={<Hash className="w-4 h-4" />}
-        />
-        {expandedSections.metadata && (
-          <div className="p-4 space-y-2">
-            <InfoRow label="Start Date" value={formatDate(result.start_date)} icon={<Calendar className="w-4 h-4" />} />
-            <InfoRow label="End Date" value={formatDate(result.end_date)} icon={<Calendar className="w-4 h-4" />} />
-            <InfoRow label="Filing Date" value={formatDate(result.filing_date)} icon={<Calendar className="w-4 h-4" />} />
-            <InfoRow label="Award Date" value={formatDate(result.award_date)} icon={<Calendar className="w-4 h-4" />} />
-            <InfoRow label="Contribution Date" value={formatDate(result.contribution_date)} icon={<Calendar className="w-4 h-4" />} />
-            <InfoRow label="Client Count" value={result.client_count} icon={<Hash className="w-4 h-4" />} />
-            <InfoRow label="Registration Count" value={result.registration_count} icon={<Hash className="w-4 h-4" />} />
-          </div>
-        )}
-      </div>
-
-      {/* Action Buttons */}
-      <div className="p-6 bg-gray-50 border-t border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Last updated: {formatDate(result.date || new Date().toISOString())}
-          </div>
-          <div className="flex items-center gap-2">
-            {generateDirectLink() && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => window.open(generateDirectLink(), '_blank')}
+        {/* Footer */}
+        <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+          <div className="flex items-center gap-3">
+            {result.url && (
+              <a
+                href={result.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <ExternalLink className="w-4 h-4 mr-1" />
-                View Source
-              </Button>
+                <ExternalLink className="w-4 h-4" />
+                View Original
+              </a>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const data = JSON.stringify(result, null, 2);
-                const blob = new Blob([data], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${result.source}_${result.title.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
-                a.click();
-              }}
+            <button
+              onClick={() => copyToClipboard(JSON.stringify(result, null, 2))}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              <Download className="w-4 h-4 mr-1" />
-              Export
-            </Button>
+              <Copy className="w-4 h-4" />
+              Copy Data
+            </button>
+          </div>
+          <div className="text-sm text-gray-500">
+            Source: {sourceInfo.name}
           </div>
         </div>
       </div>

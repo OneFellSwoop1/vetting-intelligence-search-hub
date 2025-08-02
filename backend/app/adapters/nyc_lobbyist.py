@@ -2,7 +2,7 @@ import aiohttp
 import os
 import base64
 from typing import List, Optional, Dict, Any
-from app.schemas import SearchResult
+from ..schemas import SearchResult
 import logging
 from collections import defaultdict
 
@@ -208,17 +208,22 @@ class NYCLobbyistAdapter:
                         query_variations.append(base_query.replace(" Saint ", " St "))
                         query_variations.append(base_query.replace(" Saint ", " St. "))
                     
-                    # Build comprehensive search conditions for all variations
+                    # Build focused search conditions with word boundaries to avoid partial matches
                     all_conditions = []
                     for query_var in query_variations:
-                        search_conditions = [
-                            f"upper(lobbyist_name) like upper('%{query_var}%')",
-                            f"upper(client_name) like upper('%{query_var}%')",
-                            f"upper(lobbyist_activities) like upper('%{query_var}%')",
-                            f"upper(periodic_activities) like upper('%{query_var}%')",
-                            f"upper(periodic_targets) like upper('%{query_var}%')"
+                        # Create word boundary patterns to match complete words only
+                        word_patterns = [
+                            f"upper(client_name) like upper('% {query_var} %')",  # Word in middle
+                            f"upper(client_name) like upper('{query_var} %')",   # Word at start
+                            f"upper(client_name) like upper('% {query_var}')",   # Word at end
+                            f"upper(client_name) = upper('{query_var}')",        # Exact match
+                            f"upper(lobbyist_name) like upper('% {query_var} %')",  # Word in middle
+                            f"upper(lobbyist_name) like upper('{query_var} %')",   # Word at start
+                            f"upper(lobbyist_name) like upper('% {query_var}')",   # Word at end
+                            f"upper(lobbyist_name) = upper('{query_var}')"        # Exact match
                         ]
-                        all_conditions.extend(search_conditions)
+                        
+                        all_conditions.extend(word_patterns)
                     
                     where_clause = " OR ".join(all_conditions)
                     
@@ -232,12 +237,17 @@ class NYCLobbyistAdapter:
                         "$where": where_clause
                     }
                     
+                    logger.info(f"NYC eLobbyist search query: {where_clause[:200]}...")
+                    
                     async with session.get(lobbyist_url, params=lobbyist_params) as response:
                         if response.status == 200:
                             data = await response.json()
                             logger.info(f"NYC eLobbyist API returned {len(data)} records")
                             
+                            # Log sample data for debugging
                             if data:
+                                logger.info(f"Sample result - Client: {data[0].get('client_name', 'N/A')}, Lobbyist: {data[0].get('lobbyist_name', 'N/A')}")
+                                
                                 # Group results by year and entity
                                 structured_results = self._group_results_by_year(data)
                                 

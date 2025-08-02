@@ -49,6 +49,16 @@
 - **Timeline Analysis**: Multi-dimensional temporal correlation
 - **Financial Flow Mapping**: Contract value vs. lobbying spend analysis
 
+### 🧠 **Enhanced Search with NLP & AI**
+- **Natural Language Processing**: spaCy-powered query parsing and entity extraction
+- **Smart Query Understanding**: Automatically parses complex queries like "Microsoft contracts over $1M since 2022"
+- **Synonym Expansion**: Searches variations (e.g., "Microsoft" → "MSFT", "Microsoft Corporation")
+- **Fuzzy Matching**: RapidFuzz-powered similarity matching for better results coverage
+- **Relevance Scoring**: Multi-factor ranking based on text similarity, recency, and financial significance
+- **Amount & Date Filtering**: Intelligent extraction of monetary values and time ranges from natural language
+- **Entity Recognition**: Automatic identification of organizations, people, amounts, and dates
+- **Query Suggestions**: AI-powered search optimization recommendations
+
 ### ⚡ **Enterprise Performance**
 - **Sub-second searches** across multiple government APIs
 - **Intelligent caching** with Redis for 85%+ hit rates
@@ -78,6 +88,7 @@
 - Node.js 18+
 - Redis (optional, for caching)
 - Government API keys (free registration)
+- spaCy English model (for enhanced NLP search)
 
 ### **One-Command Setup**
 ```bash
@@ -86,7 +97,10 @@ git clone https://github.com/YOUR_USERNAME/vetting-intelligence-search-hub.git
 cd vetting-intelligence-search-hub
 
 # Create environment file
-cp env.example backend/environment.env
+cp backend/env.example backend/environment.env
+
+# Install NLP model for enhanced search
+python -m spacy download en_core_web_sm
 
 # Start both services
 ./start_application.sh

@@ -9,7 +9,7 @@ from app.schemas import (
     TimelineAnalysis, CompanyAnalysis
 )
 from app.adapters.enhanced_senate_lda import EnhancedSenateLDAAdapter
-from app.adapters.checkbook import search_checkbook
+from app.adapters.checkbook import CheckbookNYCAdapter
 from app.adapters.nyc_lobbyist import search_nyc_lobbyist
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,8 @@ class EnhancedCorrelationAnalyzer:
     ) -> List[NYCPayment]:
         """Collect NYC payment data with enhanced entity matching"""
         try:
-            search_results = await search_checkbook(company_name)
+            checkbook_adapter = CheckbookNYCAdapter()
+            search_results = await checkbook_adapter.search(company_name)
             payments = []
             
             for result in search_results:

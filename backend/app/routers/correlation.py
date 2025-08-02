@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # Initialize correlation analyzer
 correlation_analyzer = CorrelationAnalyzer()
 
-@router.post("/analyze", response_model=CorrelationResponse)
+@router.post("/analyze")
 async def analyze_company_correlations(request: CorrelationRequest):
     """
     Perform comprehensive multi-jurisdictional correlation analysis for a company.
@@ -37,10 +37,10 @@ async def analyze_company_correlations(request: CorrelationRequest):
         
         if cached_analysis:
             logger.info(f"📊 Returning cached correlation analysis for: {request.company_name}")
-            return CorrelationResponse(
-                company_analysis=cached_analysis,
-                market_insights=_generate_market_insights(cached_analysis)
-            )
+            return {
+                "company_analysis": cached_analysis,
+                "market_insights": _generate_market_insights(cached_analysis)
+            }
         
         # Perform comprehensive analysis
         company_analysis = await correlation_analyzer.analyze_company(
@@ -56,11 +56,11 @@ async def analyze_company_correlations(request: CorrelationRequest):
         # Cache the results
         cache_service.cache_analysis(cache_key, company_analysis)
         
-        # Create response
-        response = CorrelationResponse(
-            company_analysis=company_analysis,
-            market_insights=market_insights
-        )
+        # Create response (simplified to avoid schema mismatch)
+        response = {
+            "company_analysis": company_analysis,
+            "market_insights": market_insights
+        }
         
         logger.info(f"✅ Correlation analysis completed for {request.company_name}")
         return response
