@@ -1,14 +1,31 @@
 import logging
 import os
+import pathlib
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from app.routers import search, correlation, auth
-from app.websocket import websocket_endpoint
+from .routers import search, correlation, auth
+from .websocket import websocket_endpoint
 
-# Load environment variables from environment.env file
-load_dotenv('environment.env')
+# Load environment variables from environment.env file first
+# Try multiple relative paths to handle different working directories
+env_paths = [
+    'environment.env',  # If running from project root
+    '../environment.env',  # If running from backend directory
+    '../../environment.env'  # If running from backend/app directory
+]
+
+loaded_env = False
+for env_path in env_paths:
+    if pathlib.Path(env_path).exists():
+        load_dotenv(env_path)
+        print(f"✅ Loaded environment variables from: {env_path}")
+        loaded_env = True
+        break
+
+if not loaded_env:
+    print("⚠️ Could not find environment.env file in any expected location")
 
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -28,12 +45,12 @@ app = FastAPI(
 )
 
 # Configure CORS
-cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:8000').split(',')
+cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://localhost:8000,http://127.0.0.1:8000').split(',')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -41,6 +58,16 @@ app.add_middleware(
 app.include_router(search.router)
 app.include_router(correlation.router)
 app.include_router(auth.router)
+
+# Include enhanced search router
+try:
+    from .routers import enhanced_search
+    app.include_router(enhanced_search.router)
+    logger.info("✅ Enhanced search capabilities loaded successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ Enhanced search not available: {e}")
+except Exception as e:
+    logger.warning(f"⚠️ Enhanced search initialization failed: {e}")
 
 # WebSocket endpoint for real-time search streaming
 @app.websocket("/ws/{client_id}")
@@ -50,7 +77,7 @@ async def websocket_route(websocket: WebSocket, client_id: str):
 
 # Include enhanced correlation router
 try:
-    from app.routers import enhanced_correlation
+    from .routers import enhanced_correlation
     app.include_router(enhanced_correlation.router)
     logger.info("✅ Enhanced correlation analysis loaded successfully")
 except ImportError as e:
@@ -63,7 +90,7 @@ async def startup_event():
     
     # Initialize database
     try:
-        from app.database import db_manager, migrate_cache_to_db
+        from .database import db_manager, migrate_cache_to_db
         db_initialized = await db_manager.initialize()
         
         if db_initialized:
@@ -81,7 +108,7 @@ async def startup_event():
     
     # Test Redis connection
     try:
-        from app.cache import cache_service
+        from .cache import cache_service
         if cache_service.redis_client:
             cache_service.redis_client.ping()
             logger.info("✅ Redis cache connected successfully")
@@ -92,7 +119,7 @@ async def startup_event():
     
     # Initialize correlation analyzer if available
     try:
-        from app.enhanced_correlation import EnhancedCorrelationAnalyzer
+        from .enhanced_correlation_analyzer import EnhancedCorrelationAnalyzer
         app.state.correlation_analyzer = EnhancedCorrelationAnalyzer()
         logger.info("✅ Enhanced correlation analysis available")
     except ImportError as e:
@@ -108,7 +135,7 @@ async def shutdown_event():
     
     # Close database connections
     try:
-        from app.database import db_manager
+        from .database import db_manager
         await db_manager.close()
     except Exception as e:
         logger.error(f"❌ Error closing database: {e}")
@@ -132,7 +159,7 @@ def health_check():
 @app.get("/health")
 def detailed_health_check():
     """Detailed health check with component status."""
-    from app.cache import cache_service
+    from .cache import cache_service
     
     cache_stats = cache_service.get_cache_stats()
     

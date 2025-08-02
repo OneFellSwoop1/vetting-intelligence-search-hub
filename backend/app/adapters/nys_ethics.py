@@ -94,162 +94,72 @@ class NYSEthicsAdapter:
             return []
 
     async def _search_with_timeout(self, query: str, year: int = None) -> List[Dict[str, Any]]:
-        """Ultra-fast search optimized for multi-source environments"""
+        """Robust search with reasonable timeouts for real-time data"""
         results = []
         
-        # Ultra-aggressive strategy: Try only the fastest dataset first
-        # If it fails quickly, return empty results to avoid holding up other adapters
-        primary_dataset = ("registration", "se5j-cmbb", 3)  # Only 3 seconds!
+        # FIXED: Increased timeouts for reliable real-time data access
+        # Use more reasonable timeouts to ensure we get actual data
+        primary_dataset = ("registration", "se5j-cmbb", 15)  # 15 seconds for reliable results
+        secondary_dataset = ("bi_monthly", "t9kf-dqbc", 20)  # 20 seconds for comprehensive data
         
-        # Use a single session with optimized settings
-        timeout = aiohttp.ClientTimeout(total=5, connect=2, sock_read=3)
+        # Use a single session with optimized settings but reasonable timeouts
+        timeout = aiohttp.ClientTimeout(total=45, connect=5, sock_read=15)
         connector = aiohttp.TCPConnector(limit=5, ttl_dns_cache=300)
         
         async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
             try:
-                # Try primary dataset only
+                # Try primary dataset with adequate timeout
                 dataset_name, dataset_id, dataset_timeout = primary_dataset
                 results = await self._search_single_dataset(
                     session, query, year, dataset_name, dataset_id, dataset_timeout
                 )
                 
-                # If primary dataset succeeds and we have time, try secondary dataset
-                if len(results) < 5:  # Only if we need more results
-                    try:
-                        secondary_results = await self._search_single_dataset(
-                            session, query, year, "bi_monthly", "t9kf-dqbc", 2  # Very fast fallback
-                        )
-                        if secondary_results:
-                            results.extend(secondary_results)
-                    except:
-                        pass  # Ignore secondary failures
+                # Always try secondary dataset for comprehensive results
+                try:
+                    dataset_name, dataset_id, dataset_timeout = secondary_dataset
+                    secondary_results = await self._search_single_dataset(
+                        session, query, year, dataset_name, dataset_id, dataset_timeout
+                    )
+                    if secondary_results:
+                        results.extend(secondary_results)
+                except Exception as e:
+                    logger.warning(f"Secondary dataset search failed: {e}")
                         
             except Exception as e:
-                logger.debug(f"NY State fast search failed: {e}")
-                return []  # Return empty on any failure to not hold up multi-source search
+                logger.warning(f"NY State search failed: {e}")
+                return []  # Return empty on total failure
         
-        # Quick optimization and return
+        # Return optimized results
         return self._optimize_results(results) if results else []
 
     async def _search_ultra_fast(self, query: str, year: int = None) -> List[Dict[str, Any]]:
-        """Ultra-fast search mode for multi-source environments - temporary hardcoded results for known companies"""
-        # Temporary solution: Return hardcoded results for companies we know have NY State lobbying data
-        # This is a workaround until the network connectivity issue with data.ny.gov is resolved
+        """Fast search mode - now uses real API calls with reasonable timeouts"""
+        # FIXED: Removed all hardcoded data - now uses real API calls for all companies
+        logger.info(f"⚡ NY State real-time search for: '{query}'")
         
-        query_lower = query.lower()
-        
-        if "microsoft" in query_lower:
-            logger.info(f"⚡ NY State ultra-fast search: Returning hardcoded Microsoft results")
-            return [
-                {
-                    'title': 'NY State Lobbying Report: Microsoft Corporation (2025)',
-                    'description': 'Lobbyist: CARNEVALE CONSULTING, LLC | Subjects: Miscellaneous Business - General | Period: Jan/Feb | Type: Direct Lobbying | Compensation: $4,000.00',
-                    'amount': 4000.0,
-                    'date': '2025-01-01',
-                    'source': 'nys_ethics',
-                    'vendor': 'CARNEVALE CONSULTING, LLC',
-                    'agency': 'NY State Commission on Ethics and Lobbying',
-                    'url': 'https://reports.ethics.ny.gov/publicquery',
-                    'record_type': 'bi_monthly',
-                    'year': '2025',
-                    'client': 'MICROSOFT CORPORATION',
-                    'lobbyist': 'CARNEVALE CONSULTING, LLC',
-                    'subjects': 'Miscellaneous Business - General',
-                    'period': 'Jan/Feb',
-                    'relationship_type': 'Direct Lobbying'
-                },
-                {
-                    'title': 'NY State Lobbying Report: Microsoft Corporation (2025)',
-                    'description': 'Lobbyist: Catalyst Government Relations, LLC | Subjects: Miscellaneous Business - General | Period: Jan/Feb | Type: Direct Lobbying | Compensation: $16,000.00',
-                    'amount': 16000.0,
-                    'date': '2025-01-01',
-                    'source': 'nys_ethics',
-                    'vendor': 'Catalyst Government Relations, LLC',
-                    'agency': 'NY State Commission on Ethics and Lobbying',
-                    'url': 'https://reports.ethics.ny.gov/publicquery',
-                    'record_type': 'bi_monthly',
-                    'year': '2025',
-                    'client': 'MICROSOFT CORPORATION',
-                    'lobbyist': 'Catalyst Government Relations, LLC',
-                    'subjects': 'Miscellaneous Business - General',
-                    'period': 'Jan/Feb',
-                    'relationship_type': 'Direct Lobbying'
-                },
-                {
-                    'title': 'NY State Lobbying Report: Microsoft Corporation (2025)',
-                    'description': 'Lobbyist: GREENBERG TRAURIG, LLP | Subjects: Miscellaneous Business - General | Period: Jan/Feb | Type: Direct Lobbying | Compensation: $14,500.00',
-                    'amount': 14500.0,
-                    'date': '2025-01-01',
-                    'source': 'nys_ethics',
-                    'vendor': 'GREENBERG TRAURIG, LLP',
-                    'agency': 'NY State Commission on Ethics and Lobbying',
-                    'url': 'https://reports.ethics.ny.gov/publicquery',
-                    'record_type': 'bi_monthly',
-                    'year': '2025',
-                    'client': 'MICROSOFT CORPORATION',
-                    'lobbyist': 'GREENBERG TRAURIG, LLP',
-                    'subjects': 'Miscellaneous Business - General',
-                    'period': 'Jan/Feb',
-                    'relationship_type': 'Direct Lobbying'
-                }
-            ]
-        
-        elif "dell" in query_lower:
-            logger.info(f"⚡ NY State ultra-fast search: Returning hardcoded Dell results")
-            return [
-                {
-                    'title': 'NY State Lobbying Report: Dell Technologies Inc. (2025)',
-                    'description': 'Lobbyist: FONTAS ADVISORS NY LLC | Subjects: Miscellaneous Business - General | Period: Jan/Feb | Type: Amendment | Compensation: $20,000.00',
-                    'amount': 20000.0,
-                    'date': '2025-01-01',
-                    'source': 'nys_ethics',
-                    'vendor': 'FONTAS ADVISORS NY LLC',
-                    'agency': 'NY State Commission on Ethics and Lobbying',
-                    'url': 'https://reports.ethics.ny.gov/publicquery',
-                    'record_type': 'bi_monthly',
-                    'year': '2025',
-                    'client': 'DELL TECHNOLOGIES INC.',
-                    'lobbyist': 'FONTAS ADVISORS NY LLC',
-                    'subjects': 'Miscellaneous Business - General',
-                    'period': 'Jan/Feb',
-                    'relationship_type': 'Amendment'
-                },
-                {
-                    'title': 'NY State Lobbying Report: Dell Technologies Inc. (2024)',
-                    'description': 'Lobbyist: FONTAS ADVISORS NY LLC | Subjects: Miscellaneous Business - General | Period: Jan/Feb | Compensation: $17,000.00',
-                    'amount': 17000.0,
-                    'date': '2024-01-01',
-                    'source': 'nys_ethics',
-                    'vendor': 'FONTAS ADVISORS NY LLC',
-                    'agency': 'NY State Commission on Ethics and Lobbying',
-                    'url': 'https://reports.ethics.ny.gov/publicquery',
-                    'record_type': 'bi_monthly',
-                    'year': '2024',
-                    'client': 'DELL TECHNOLOGIES INC.',
-                    'lobbyist': 'FONTAS ADVISORS NY LLC',
-                    'subjects': 'Miscellaneous Business - General',
-                    'period': 'Jan/Feb',
-                    'relationship_type': 'Original'
-                }
-            ]
-        
-        else:
-            # For other companies, try the original logic with very short timeout
-            try:
-                timeout = aiohttp.ClientTimeout(total=3, connect=1, sock_read=2)
-                connector = aiohttp.TCPConnector(limit=2, ttl_dns_cache=300)
+        try:
+            # Use moderate timeout for ultra-fast mode (balance speed vs reliability)
+            timeout = aiohttp.ClientTimeout(total=10, connect=3, sock_read=5)
+            connector = aiohttp.TCPConnector(limit=3, ttl_dns_cache=300)
+            
+            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+                # Try bi-monthly dataset first (usually has most recent data)
+                results = await self._search_single_dataset(
+                    session, query, year, "bi_monthly", "t9kf-dqbc", 8
+                )
                 
-                async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+                # If no results, try registration dataset
+                if not results:
                     results = await self._search_single_dataset(
-                        session, query, year, "bi_monthly", "t9kf-dqbc", 2
+                        session, query, year, "registration", "se5j-cmbb", 8
                     )
-                    
-                    logger.info(f"⚡ NY State ultra-fast search completed: {len(results)} results in <3s")
-                    return self._optimize_results(results) if results else []
-                    
-            except Exception as e:
-                logger.debug(f"NY State ultra-fast search failed: {e}")
-                return []  # Return empty on any failure
+                
+                logger.info(f"⚡ NY State real-time search completed: {len(results)} results")
+                return self._optimize_results(results) if results else []
+                
+        except Exception as e:
+            logger.warning(f"NY State ultra-fast search failed: {e}")
+            return []  # Return empty on any failure
 
     async def _search_single_dataset(self, session: aiohttp.ClientSession, query: str, 
                                    year: int, dataset_name: str, dataset_id: str, 

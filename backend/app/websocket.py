@@ -7,10 +7,10 @@ from fastapi import WebSocket, WebSocketDisconnect
 logger = logging.getLogger(__name__)
 
 # Import adapters directly
-from app.adapters import checkbook as checkbook_adapter
-from app.adapters import nys_ethics as nys_ethics_adapter  
-from app.adapters import senate_lda as senate_lda_adapter
-from app.adapters import nyc_lobbyist as nyc_lobbyist_adapter
+from .adapters.checkbook import CheckbookNYCAdapter
+from .adapters.nys_ethics import NYSEthicsAdapter  
+from .adapters.senate_lda import SenateHouseLDAAdapter
+from .adapters.nyc_lobbyist import NYCLobbyistAdapter
 
 async def search_all_sources(query: str, year: str = None, jurisdiction: str = None):
     """Search all sources for WebSocket streaming."""
@@ -19,10 +19,10 @@ async def search_all_sources(query: str, year: str = None, jurisdiction: str = N
     
     # Define all search tasks
     search_tasks = [
-        ("checkbook", checkbook_adapter.search(query, year_int)),
-        ("nys_ethics", nys_ethics_adapter.search(query, year_int)),
-        ("senate_lda", senate_lda_adapter.search(query, year_int)),
-        ("nyc_lobbyist", nyc_lobbyist_adapter.search(query, year_int)),
+        ("checkbook", CheckbookNYCAdapter().search(query, year_int)),
+        ("nys_ethics", NYSEthicsAdapter().search(query, year_int)),
+        ("senate_lda", SenateHouseLDAAdapter().search(query, year_int)),
+        ("nyc_lobbyist", NYCLobbyistAdapter().search(query, year_int)),
     ]
     
     # Execute all searches in parallel

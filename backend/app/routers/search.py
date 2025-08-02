@@ -4,11 +4,11 @@ from typing import Optional, Dict, Any, List
 import asyncio
 import logging
 
-# Import all adapters - restored since cache issues are fixed
-from ..adapters import checkbook as checkbook_adapter
-from ..adapters import nys_ethics as nys_ethics_adapter  
-from ..adapters import senate_lda as senate_lda_adapter
-from ..adapters import nyc_lobbyist as nyc_lobbyist_adapter
+# Import all adapters - import the classes directly
+from ..adapters.checkbook import CheckbookNYCAdapter
+from ..adapters.nys_ethics import NYSEthicsAdapter  
+from ..adapters.senate_lda import SenateHouseLDAAdapter
+from ..adapters.nyc_lobbyist import NYCLobbyistAdapter
 
 # Import the new service
 from ..services.checkbook import CheckbookNYCService
@@ -152,14 +152,18 @@ async def search(
     
     for source in sources_to_use:
         if source == "checkbook":
-            search_tasks.append(("checkbook", checkbook_adapter.search(request.query, year_int)))
+            adapter = CheckbookNYCAdapter()
+            search_tasks.append(("checkbook", adapter.search(request.query, year_int)))
         elif source == "nys_ethics":
             # FIXED: Disable ultra-fast mode to use real NY State API instead of hardcoded results
-            search_tasks.append(("nys_ethics", nys_ethics_adapter.search(request.query, year_int, ultra_fast_mode=False)))
+            adapter = NYSEthicsAdapter()
+            search_tasks.append(("nys_ethics", adapter.search(request.query, year_int, ultra_fast_mode=False)))
         elif source == "senate_lda":
-            search_tasks.append(("senate_lda", senate_lda_adapter.search(request.query, year_int)))
+            adapter = SenateHouseLDAAdapter()
+            search_tasks.append(("senate_lda", adapter.search(request.query, year_int)))
         elif source == "nyc_lobbyist":
-            search_tasks.append(("nyc_lobbyist", nyc_lobbyist_adapter.search(request.query, year_int)))
+            adapter = NYCLobbyistAdapter()
+            search_tasks.append(("nyc_lobbyist", adapter.search(request.query, year_int)))
     
     # Execute all searches in parallel with timeout
     results = []
@@ -299,7 +303,7 @@ async def checkbook_health_check():
     Simple health check for Checkbook adapter without external API calls
     """
     try:
-        adapter = checkbook_adapter.CheckbookNYCAdapter()
+        adapter = CheckbookNYCAdapter()
         
         return {
             'status': 'healthy',
@@ -329,7 +333,7 @@ async def test_checkbook_integration(
     Returns comprehensive test results including metrics and data samples
     """
     try:
-        adapter = checkbook_adapter.CheckbookNYCAdapter()
+        adapter = CheckbookNYCAdapter()
         
         # Reset metrics before test
         adapter.reset_metrics()

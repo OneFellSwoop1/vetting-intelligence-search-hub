@@ -1,0 +1,229 @@
+# Entity Synonyms and Abbreviations Configuration
+# This file defines mappings between entity names and their common variations
+
+companies:
+  google:
+    - "alphabet inc"
+    - "google"
+    - "alphabet"
+    - "google llc"
+  
+  facebook:
+    - "meta"
+    - "facebook"
+    - "meta platforms"
+    - "facebook inc"
+  
+  amazon:
+    - "amazon"
+    - "amazon.com"
+    - "aws"
+    - "amazon web services"
+    - "amazon inc"
+  
+  microsoft:
+    - "microsoft"
+    - "msft"
+    - "microsoft corporation"
+    - "microsoft corp"
+  
+  apple:
+    - "apple"
+    - "apple inc"
+    - "apple computer"
+    - "apple corp"
+  
+  ibm:
+    - "ibm"
+    - "international business machines"
+    - "ibm corp"
+  
+  oracle:
+    - "oracle"
+    - "oracle corporation"
+    - "oracle corp"
+  
+  salesforce:
+    - "salesforce"
+    - "salesforce.com"
+    - "salesforce inc"
+
+agencies:
+  health:
+    - "department of health"
+    - "dept of health"
+    - "doh"
+    - "health dept"
+    - "department of health and mental hygiene"
+    - "dohmh"
+  
+  education:
+    - "department of education"
+    - "dept of education"
+    - "doe"
+    - "education dept"
+    - "nyc department of education"
+    - "nyc doe"
+  
+  transportation:
+    - "department of transportation"
+    - "dept of transportation"
+    - "dot"
+    - "transport"
+    - "nyc dot"
+    - "mta"
+    - "metropolitan transportation authority"
+  
+  parks:
+    - "department of parks and recreation"
+    - "parks department"
+    - "nyc parks"
+    - "parks and rec"
+    - "dpr"
+  
+  police:
+    - "police department"
+    - "nypd"
+    - "police"
+    - "new york police department"
+  
+  fire:
+    - "fire department"
+    - "fdny"
+    - "fire"
+    - "new york fire department"
+  
+  sanitation:
+    - "department of sanitation"
+    - "dsny"
+    - "sanitation"
+    - "dept of sanitation"
+
+locations:
+  nyc:
+    - "new york city"
+    - "city of new york"
+    - "nyc"
+    - "manhattan"
+    - "the city"
+  
+  nys:
+    - "new york state"
+    - "state of new york"
+    - "nys"
+    - "albany"
+    - "the state"
+  
+  brooklyn:
+    - "brooklyn"
+    - "kings county"
+    - "bk"
+  
+  queens:
+    - "queens"
+    - "queens county"
+  
+  bronx:
+    - "bronx"
+    - "the bronx"
+    - "bronx county"
+  
+  staten_island:
+    - "staten island"
+    - "richmond county"
+    - "si"
+
+suffixes:
+  corp:
+    - "corporation"
+    - "corp"
+    - "company"
+    - "co"
+  
+  inc:
+    - "incorporated"
+    - "inc"
+    - "company"
+  
+  llc:
+    - "limited liability company"
+    - "llc"
+  
+  ltd:
+    - "limited"
+    - "ltd"
+  
+  lp:
+    - "limited partnership"
+    - "lp"
+  
+  llp:
+    - "limited liability partnership" 
+    - "llp"
+
+industries:
+  technology:
+    - "tech"
+    - "technology"
+    - "it"
+    - "information technology"
+    - "software"
+    - "computer"
+  
+  healthcare:
+    - "healthcare"
+    - "health care"
+    - "medical"
+    - "hospital"
+    - "clinic"
+  
+  finance:
+    - "finance"
+    - "financial"
+    - "bank"
+    - "banking"
+    - "investment"
+  
+  construction:
+    - "construction"
+    - "building"
+    - "contracting"
+    - "contractor"
+    - "development"
+  
+  consulting:
+    - "consulting"
+    - "consultancy"
+    - "advisory"
+    - "services"
+
+common_terms:
+  department:
+    - "department"
+    - "dept"
+    - "dep"
+  
+  office:
+    - "office"
+    - "bureau"
+    - "division"
+  
+  administration:
+    - "administration"
+    - "admin"
+    - "authority"
+  
+  services:
+    - "services"
+    - "svc"
+    - "svcs"
+  
+  management:
+    - "management"
+    - "mgmt"
+    - "managing"
+  
+  solutions:
+    - "solutions"
+    - "sol"
+    - "systems" 
