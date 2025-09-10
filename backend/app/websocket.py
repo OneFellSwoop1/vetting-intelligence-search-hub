@@ -57,6 +57,7 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
         self.search_sessions: Dict[str, Dict] = {}
+        self.session_cleanup_task = None
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
@@ -69,6 +70,32 @@ class ConnectionManager:
         if client_id in self.search_sessions:
             del self.search_sessions[client_id]
         logger.info(f"WebSocket client {client_id} disconnected")
+        
+        # Start cleanup task if needed
+        if not self.session_cleanup_task or self.session_cleanup_task.done():
+            self.session_cleanup_task = asyncio.create_task(self._cleanup_stale_sessions())
+    
+    async def _cleanup_stale_sessions(self):
+        """Clean up stale search sessions to prevent memory leaks."""
+        import time
+        try:
+            await asyncio.sleep(300)  # Wait 5 minutes before cleanup
+            current_time = time.time()
+            stale_sessions = []
+            
+            for client_id, session in self.search_sessions.items():
+                # Remove sessions older than 30 minutes or for disconnected clients
+                session_age = current_time - session.get('created_at', current_time)
+                if session_age > 1800 or client_id not in self.active_connections:
+                    stale_sessions.append(client_id)
+            
+            for client_id in stale_sessions:
+                if client_id in self.search_sessions:
+                    del self.search_sessions[client_id]
+                    logger.info(f"Cleaned up stale search session for {client_id}")
+                    
+        except Exception as e:
+            logger.error(f"Error during session cleanup: {e}")
 
     async def send_personal_message(self, message: dict, client_id: str):
         if client_id in self.active_connections:
@@ -97,6 +124,7 @@ class ConnectionManager:
             return
 
         # Initialize search session
+        import time
         self.search_sessions[client_id] = {
             'query': query,
             'year': year,
@@ -105,7 +133,8 @@ class ConnectionManager:
             'sources_completed': 0,
             'total_sources': 4,
             'results': [],
-            'total_hits': {}
+            'total_hits': {},
+            'created_at': time.time()
         }
 
         # Send initial status
@@ -125,7 +154,21 @@ class ConnectionManager:
         ]
 
         try:
-            # Search each source and stream results
+            # Perform search once and distribute results by source
+            logger.info(f"🔍 Performing unified search for all sources")
+            search_results = await search_all_sources(query, year, jurisdiction)
+            all_results = search_results.get('results', [])
+            total_hits = search_results.get('total_hits', {})
+            
+            # Group results by source
+            results_by_source = {}
+            for result in all_results:
+                source_name = result.get('source', 'unknown')
+                if source_name not in results_by_source:
+                    results_by_source[source_name] = []
+                results_by_source[source_name].append(result)
+
+            # Stream results for each source
             for i, source in enumerate(sources):
                 if client_id not in self.active_connections:
                     break
@@ -140,29 +183,18 @@ class ConnectionManager:
                 }, client_id)
 
                 try:
-                    # Simulate individual source search (in real implementation, this would call specific source APIs)
-                    await asyncio.sleep(0.5)  # Simulate API call delay
+                    # Add realistic delay for user experience
+                    await asyncio.sleep(0.3)
                     
-                    # For demo purposes, we'll use the existing search function
-                    # In production, you'd want to search each source individually
-                    if i == 0:  # Only do actual search on first iteration to avoid duplicates
-                        search_results = await search_all_sources(query, year, jurisdiction)
-                        all_results = search_results.get('results', [])
-                        total_hits = search_results.get('total_hits', {})
-                    else:
-                        all_results = []
-                        total_hits = {}
-
-                    # Filter results for this source (demo)
-                    source_results = [r for r in all_results if r.get('source') == source['name']]
+                    # Get results for this specific source
+                    source_results = results_by_source.get(source['name'], [])
                     source_count = len(source_results)
 
                     # Update session
                     if client_id in self.search_sessions:
                         self.search_sessions[client_id]['sources_completed'] += 1
                         self.search_sessions[client_id]['results'].extend(source_results)
-                        if source['name'] in total_hits:
-                            self.search_sessions[client_id]['total_hits'][source['name']] = total_hits[source['name']]
+                        self.search_sessions[client_id]['total_hits'][source['name']] = source_count
 
                     # Send source completion notification
                     await self.send_personal_message({
@@ -176,7 +208,7 @@ class ConnectionManager:
                     }, client_id)
 
                 except Exception as e:
-                    logger.error(f"Error searching {source['name']}: {e}")
+                    logger.error(f"Error processing {source['name']} results: {e}")
                     await self.send_personal_message({
                         'type': 'source_error',
                         'source': source['name'],

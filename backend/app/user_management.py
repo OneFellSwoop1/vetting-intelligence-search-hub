@@ -20,7 +20,17 @@ from .cache import cache_service
 logger = logging.getLogger(__name__)
 
 # JWT Configuration
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
+def _get_jwt_secret():
+    """Get JWT secret key with secure fallback generation."""
+    secret = os.getenv("JWT_SECRET_KEY")
+    if not secret:
+        logger.warning("JWT_SECRET_KEY not set in environment! Using auto-generated key.")
+        logger.warning("This key will change on restart, invalidating all tokens.")
+        logger.warning("Set JWT_SECRET_KEY environment variable for production use.")
+        secret = secrets.token_urlsafe(32)
+    return secret
+
+JWT_SECRET_KEY = _get_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
 
