@@ -78,15 +78,31 @@ class CacheService:
             return False
     
     def clear_pattern(self, pattern: str) -> int:
-        """Clear all keys matching pattern"""
+        """Clear all keys matching pattern using efficient SCAN operation"""
         if not self.enabled:
             return 0
             
         try:
-            keys = self.redis_client.keys(pattern)
-            if keys:
-                return self.redis_client.delete(*keys)
-            return 0
+            deleted_count = 0
+            cursor = 0
+            
+            # Use SCAN instead of KEYS for better performance
+            while True:
+                cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+                if keys:
+                    # Delete in batches to avoid blocking Redis too long
+                    batch_size = 50
+                    for i in range(0, len(keys), batch_size):
+                        batch = keys[i:i + batch_size]
+                        deleted_count += self.redis_client.delete(*batch)
+                
+                if cursor == 0:  # Full scan completed
+                    break
+                    
+            if deleted_count > 0:
+                logger.info(f"Cleared {deleted_count} keys matching pattern: {pattern}")
+            return deleted_count
+            
         except RedisError as e:
             logger.warning(f"Cache clear pattern error for {pattern}: {e}")
             return 0
@@ -350,38 +366,12 @@ class CacheService:
     
     def clear_cache(self, pattern: str = "search:*"):
         """Clear cached results matching the pattern."""
-        if not self.enabled:
-            return 0
-        
-        try:
-            keys = self.redis_client.keys(pattern)
-            if keys:
-                deleted_count = self.redis_client.delete(*keys)
-                logger.info(f"Cleared {deleted_count} cached entries matching pattern: {pattern}")
-                return deleted_count
-            return 0
-        
-        except Exception as e:
-            logger.error(f"Error clearing cache: {e}")
-            return 0
+        return self.clear_pattern(pattern)
     
     def clear_company_cache(self, company_name: str):
         """Clear all cached data for a specific company."""
-        if not self.enabled:
-            return 0
-        
-        try:
-            pattern = f"company:{company_name.lower().replace(' ', '_')}:*"
-            keys = self.redis_client.keys(pattern)
-            if keys:
-                deleted_count = self.redis_client.delete(*keys)
-                logger.info(f"Cleared {deleted_count} cached entries for company: {company_name}")
-                return deleted_count
-            return 0
-        
-        except Exception as e:
-            logger.error(f"Error clearing company cache: {e}")
-            return 0
+        pattern = f"company:{company_name.lower().replace(' ', '_')}:*"
+        return self.clear_pattern(pattern)
     
     def get_cache_stats(self) -> dict:
         """Get enhanced cache statistics including new cache types."""
@@ -391,10 +381,20 @@ class CacheService:
         try:
             info = self.redis_client.info()
             
-            # Count different types of cached data
-            search_keys = len(self.redis_client.keys("search:*"))
-            company_keys = len(self.redis_client.keys("company:*"))
-            correlation_keys = len(self.redis_client.keys("correlation_*"))
+            # Count different types of cached data using efficient SCAN
+            def count_keys_by_pattern(pattern):
+                count = 0
+                cursor = 0
+                while True:
+                    cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
+                    count += len(keys)
+                    if cursor == 0:
+                        break
+                return count
+            
+            search_keys = count_keys_by_pattern("search:*")
+            company_keys = count_keys_by_pattern("company:*")
+            correlation_keys = count_keys_by_pattern("correlation_*")
             
             return {
                 'status': 'connected',
