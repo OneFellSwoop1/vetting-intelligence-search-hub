@@ -19,9 +19,9 @@ interface FECResult {
   vendor?: string;
   agency?: string;
   amount?: number;
-  description?: string;
+  description: string;  // Make required to match SearchResult
   date?: string;
-  year?: number;
+  year?: string;
   url?: string;
   record_type?: string;
   
