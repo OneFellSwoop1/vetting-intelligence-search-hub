@@ -10,6 +10,7 @@ import DetailedResultView from '@/components/enhanced-results/DetailedResultView
 import CheckbookStyleResults from '@/components/enhanced-search/CheckbookStyleResults';
 import NYCLobbyistStyleResults from '@/components/enhanced-search/NYCLobbyistStyleResults';
 import CheckbookNYCStyleResults from '@/components/enhanced-search/CheckbookNYCStyleResults';
+import FECStyleResults from '@/components/enhanced-search/FECStyleResults';
 
 // Chart interfaces
 interface ChartData {
@@ -85,6 +86,7 @@ const sourceConfig = {
   senate_lda: { name: 'Senate LDA (House & Senate Lobbying)', color: 'bg-red-100 text-red-800', icon: '🏛️' },
   checkbook: { name: 'NYC Contracts', color: 'bg-green-100 text-green-800', icon: '📋' },
   dbnyc: { name: 'FEC Campaign Finance', color: 'bg-blue-100 text-blue-800', icon: '💰' },
+  fec: { name: 'FEC Campaign Finance', color: 'bg-blue-100 text-blue-800', icon: '🗳️' },
   nys_ethics: { name: 'NY State', color: 'bg-yellow-100 text-yellow-800', icon: '🏛️' },
   nyc_lobbyist: { name: 'NYC Lobbyist', color: 'bg-orange-100 text-orange-800', icon: '🤝' }
 };
@@ -540,7 +542,7 @@ export default function VettingIntelligenceHub() {
               Lobbying & Political Activities
             </h3>
             <div className="space-y-4">
-              {['senate_lda', 'nys_ethics', 'nyc_lobbyist'].map((source, index) => {
+              {['senate_lda', 'nys_ethics', 'nyc_lobbyist', 'fec'].map((source, index) => {
                 const count = totalHits[source] || 0;
                 const sourceInfo = sourceConfig[source as keyof typeof sourceConfig];
                 if (!sourceInfo) return null;
@@ -926,7 +928,7 @@ export default function VettingIntelligenceHub() {
                 {[
                   { icon: Globe, label: "Federal Lobbying (LDA)", color: "from-blue-500 to-blue-600" },
                   { icon: Building, label: "NYC Contracts", color: "from-green-500 to-green-600" },
-                  { icon: DollarSign, label: "Campaign Finance", color: "from-purple-500 to-purple-600" },
+                  { icon: DollarSign, label: "FEC Campaign Finance", color: "from-purple-500 to-purple-600" },
                   { icon: Shield, label: "NY State Ethics", color: "from-orange-500 to-orange-600" },
                   { icon: Users, label: "NYC Lobbying", color: "from-cyan-500 to-cyan-600" }
                 ].map((item, index) => (
@@ -1196,6 +1198,46 @@ export default function VettingIntelligenceHub() {
               />
             )}
             
+            {/* FEC Campaign Finance Results */}
+            {displayResults.some(r => r.source === 'fec') && (
+              <FECStyleResults 
+                results={displayResults.filter(r => r.source === 'fec').map(result => ({
+                  id: `${result.source}-${Math.random()}`,
+                  source: result.source,
+                  title: result.title,
+                  vendor: result.vendor,
+                  agency: result.agency,
+                  amount: typeof result.amount === 'string' 
+                    ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                    : result.amount,
+                  description: result.description || '',
+                  date: result.date,
+                  year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
+                  url: result.url,
+                  record_type: result.record_type,
+                  // FEC-specific fields
+                  candidate_id: (result as any).candidate_id,
+                  committee_id: (result as any).committee_id,
+                  party: (result as any).party,
+                  office: (result as any).office,
+                  state: (result as any).state,
+                  district: (result as any).district,
+                  contributor_name: (result as any).contributor_name,
+                  contributor_employer: (result as any).contributor_employer,
+                  contributor_occupation: (result as any).contributor_occupation,
+                  contributor_city: (result as any).contributor_city,
+                  contributor_state: (result as any).contributor_state,
+                  committee_name: (result as any).committee_name,
+                  election_type: (result as any).election_type,
+                  two_year_transaction_period: (result as any).two_year_transaction_period,
+                  raw_data: (result as any).raw_data
+                }))}
+                searchQuery={query}
+                isLoading={loading}
+                onViewDetails={handleViewDetails}
+              />
+            )}
+            
             {/* General Results - NYC Lobbying Style for All Data */}
             {displayResults.length > 0 && (
               <NYCLobbyistStyleResults 
@@ -1282,7 +1324,7 @@ export default function VettingIntelligenceHub() {
                     {[
                       { icon: Globe, title: "Federal Lobbying", desc: "Senate and House LDA records" },
                       { icon: Building, title: "NYC Contracts", desc: "Public contract and payment data" },
-                      { icon: DollarSign, title: "Campaign Finance", desc: "Political contribution records" },
+                      { icon: DollarSign, title: "FEC Campaign Finance", desc: "Federal campaign contributions and expenditures" },
                       { icon: Shield, title: "NY State Ethics", desc: "State procurement and ethics data" },
                       { icon: Users, title: "NYC Lobbying", desc: "Local lobbying registrations" },
                       { icon: BarChart3, title: "Analytics", desc: "Interactive charts and insights" }

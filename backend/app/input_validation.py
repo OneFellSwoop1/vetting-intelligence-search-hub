@@ -177,7 +177,7 @@ def validate_sources(sources: Optional[List[str]]) -> Optional[List[str]]:
         return None
     
     valid_sources = {
-        "checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist",
+        "checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist", "fec",
         "enhanced_checkbook", "enhanced_senate_lda"
     }
     
