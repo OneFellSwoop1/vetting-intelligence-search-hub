@@ -5,16 +5,17 @@ Provides access to candidate contributions, disbursements, and committee informa
 
 import logging
 import asyncio
+import httpx
 from typing import List, Dict, Any, Optional
 from urllib.parse import quote
 
-from .base import HTTPAdapter
+from .base import BaseAdapter
 from ..error_handling import handle_async_errors, DataSourceError
 
 logger = logging.getLogger(__name__)
 
 
-class FECAdapter(HTTPAdapter):
+class FECAdapter(BaseAdapter):
     """
     Federal Election Commission API adapter.
     
@@ -28,7 +29,7 @@ class FECAdapter(HTTPAdapter):
     
     def __init__(self):
         """Initialize FEC adapter with API configuration."""
-        super().__init__(client_name="fec")
+        super().__init__()
         
         # FEC API configuration
         self.base_url = "https://api.open.fec.gov/v1"
@@ -53,15 +54,23 @@ class FECAdapter(HTTPAdapter):
     def _get_api_key(self) -> str:
         """Get FEC API key from environment or configuration."""
         import os
-        from ..config import settings
         
-        # Try to get from settings first, then environment
-        api_key = getattr(settings, 'FEC_API_KEY', None) or os.getenv('FEC_API_KEY')
+        # Get directly from environment first (most reliable)
+        api_key = os.getenv('FEC_API_KEY')
+        
+        if not api_key:
+            # Try from config as fallback
+            try:
+                from ..config import settings
+                api_key = getattr(settings, 'FEC_API_KEY', None)
+            except:
+                pass
         
         if not api_key:
             logger.warning("⚠️ FEC_API_KEY not found in configuration")
             return "DEMO_KEY"  # FEC provides demo key for testing
         
+        logger.info(f"✅ FEC API key loaded: {api_key[:10]}...")
         return api_key
     
     @handle_async_errors(default_return=[], reraise_on=(DataSourceError,))
@@ -119,7 +128,7 @@ class FECAdapter(HTTPAdapter):
             )
             
             logger.info(f"✅ FEC search completed: {len(unique_results)} unique results")
-            return unique_results[:limit]
+            return unique_results[:50]  # Use fixed limit
             
         except Exception as e:
             logger.error(f"❌ FEC search failed: {e}")
@@ -139,7 +148,14 @@ class FECAdapter(HTTPAdapter):
                 params['cycle'] = year
             
             url = f"{self.base_url}{self.endpoints['candidates']}"
-            data = await self._http_get(url, params=params)
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                else:
+                    logger.warning(f"FEC API error {response.status_code}: {response.text[:200]}")
+                    return []
             
             if not data or 'results' not in data:
                 return []
@@ -171,7 +187,14 @@ class FECAdapter(HTTPAdapter):
                 params['cycle'] = year
             
             url = f"{self.base_url}{self.endpoints['committees']}"
-            data = await self._http_get(url, params=params)
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                else:
+                    logger.warning(f"FEC API error {response.status_code}: {response.text[:200]}")
+                    return []
             
             if not data or 'results' not in data:
                 return []
@@ -203,7 +226,14 @@ class FECAdapter(HTTPAdapter):
                 params['two_year_transaction_period'] = year
             
             url = f"{self.base_url}{self.endpoints['contributions']}"
-            data = await self._http_get(url, params=params)
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                else:
+                    logger.warning(f"FEC API error {response.status_code}: {response.text[:200]}")
+                    return []
             
             if not data or 'results' not in data:
                 return []
@@ -235,7 +265,14 @@ class FECAdapter(HTTPAdapter):
                 params['two_year_transaction_period'] = year
             
             url = f"{self.base_url}{self.endpoints['disbursements']}"
-            data = await self._http_get(url, params=params)
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                else:
+                    logger.warning(f"FEC API error {response.status_code}: {response.text[:200]}")
+                    return []
             
             if not data or 'results' not in data:
                 return []
@@ -432,7 +469,14 @@ class FECAdapter(HTTPAdapter):
                 params['cycle'] = cycle
             
             url = f"{self.base_url}{self.endpoints['candidate_totals'].format(candidate_id)}"
-            data = await self._http_get(url, params=params)
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, params=params)
+                if response.status_code == 200:
+                    data = response.json()
+                else:
+                    logger.warning(f"FEC API error {response.status_code}: {response.text[:200]}")
+                    return None
             
             if not data or 'results' not in data or not data['results']:
                 return None
