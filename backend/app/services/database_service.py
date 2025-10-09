@@ -1,365 +1,380 @@
-"""Database service layer for CRUD operations."""
+"""Database service for search history and analytics persistence."""
 
-import time
+import logging
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_, or_
+from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 
-from ..models import (
-    SearchQuery, SearchResult, CorrelationAnalysis, 
-    SavedSearch, DataSourceStatus, ApiUsageLog, EntityProfile
-)
-from ..schemas import SearchRequest, SearchResponse
+from ..models import SearchQuery, SearchResult, CorrelationAnalysis, DataSourceStatus
+from ..schemas import SearchRequest
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseService:
-    """Service for database operations."""
+    """
+    Service for database operations related to search history and analytics.
     
-    def __init__(self, session: AsyncSession):
-        self.session = session
-
+    Provides methods for:
+    - Creating and managing search queries
+    - Storing search results
+    - Tracking data source performance
+    - Analytics and reporting
+    """
+    
+    def __init__(self, db: AsyncSession):
+        """
+        Initialize database service.
+        
+        Args:
+            db: Async database session
+        """
+        self.db = db
+    
     async def create_search_query(
-        self, 
-        request: SearchRequest, 
-        user_ip: str = None, 
-        user_agent: str = None
+        self,
+        request: SearchRequest,
+        user_ip: str,
+        user_agent: Optional[str] = None
     ) -> SearchQuery:
-        """Create a new search query record."""
-        query = SearchQuery(
-            query_text=request.query,
-            year=request.year,
-            jurisdiction=request.jurisdiction,
-            user_ip=user_ip,
-            user_agent=user_agent
-        )
-        self.session.add(query)
-        await self.session.commit()
-        await self.session.refresh(query)
-        return query
-
-    async def update_search_query_results(
-        self, 
-        query_id: int, 
-        response: SearchResponse, 
-        execution_time_ms: int
-    ) -> SearchQuery:
-        """Update search query with results metadata."""
-        query = await self.session.get(SearchQuery, query_id)
-        if query:
-            query.total_results = response.total_results
-            query.total_amount = response.analytics.financial_analysis.total_amount if response.analytics else 0.0
-            query.sources_queried = list(response.results_by_source.keys()) if response.results_by_source else []
-            query.execution_time_ms = execution_time_ms
-            await self.session.commit()
-            await self.session.refresh(query)
-        return query
-
+        """
+        Create a new search query record.
+        
+        Args:
+            request: Search request parameters
+            user_ip: Client IP address
+            user_agent: Client user agent string
+            
+        Returns:
+            Created SearchQuery instance
+        """
+        try:
+            search_query = SearchQuery(
+                query_text=request.query,
+                year=request.year,
+                jurisdiction=request.jurisdiction,
+                user_ip=user_ip,
+                user_agent=user_agent,
+                sources_queried=[]  # Will be updated after search
+            )
+            
+            self.db.add(search_query)
+            await self.db.commit()
+            await self.db.refresh(search_query)
+            
+            logger.info(f"✅ Created search query record: ID {search_query.id}")
+            return search_query
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to create search query: {e}")
+            await self.db.rollback()
+            raise
+    
     async def create_search_results(
-        self, 
-        query_id: int, 
+        self,
+        query_id: int,
         results: List[Dict[str, Any]]
     ) -> List[SearchResult]:
-        """Create search result records."""
-        search_results = []
-        for result_data in results:
-            result = SearchResult(
-                query_id=query_id,
-                title=result_data.get("title", "")[:1000],  # Truncate if too long
-                description=result_data.get("description", ""),
-                amount=result_data.get("amount"),
-                date=str(result_data.get("date", "")),
-                source=result_data.get("source", ""),
-                vendor=result_data.get("vendor", ""),
-                agency=result_data.get("agency", ""),
-                url=result_data.get("url", ""),
-                record_type=result_data.get("record_type", ""),
-                year=str(result_data.get("year", "")),
-                raw_data=result_data
-            )
-            search_results.append(result)
-            self.session.add(result)
+        """
+        Store search results in database.
         
-        await self.session.commit()
-        return search_results
-
-    async def create_correlation_analysis(
-        self, 
-        query_id: int, 
-        analysis_type: str,
-        correlations: Dict[str, Any],
-        execution_time_ms: int = None,
-        memory_usage_mb: float = None
-    ) -> CorrelationAnalysis:
-        """Create correlation analysis record."""
-        analysis = CorrelationAnalysis(
-            query_id=query_id,
-            analysis_type=analysis_type,
-            entity_count=correlations.get("entity_count", 0),
-            correlation_count=correlations.get("correlation_count", 0),
-            correlations=correlations.get("correlations"),
-            insights=correlations.get("insights"),
-            patterns=correlations.get("patterns"),
-            anomalies=correlations.get("anomalies"),
-            execution_time_ms=execution_time_ms,
-            memory_usage_mb=memory_usage_mb
-        )
-        self.session.add(analysis)
-        await self.session.commit()
-        await self.session.refresh(analysis)
-        return analysis
-
-    async def get_search_history(
-        self, 
-        user_ip: str = None, 
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[SearchQuery]:
-        """Get search history for a user or globally."""
-        query = select(SearchQuery).order_by(desc(SearchQuery.created_at))
-        
-        if user_ip:
-            query = query.where(SearchQuery.user_ip == user_ip)
-        
-        query = query.offset(offset).limit(limit)
-        result = await self.session.execute(query)
-        return result.scalars().all()
-
-    async def get_popular_searches(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get most popular search queries."""
-        query = (
-            select(
-                SearchQuery.query_text,
-                func.count(SearchQuery.id).label("search_count"),
-                func.avg(SearchQuery.total_results).label("avg_results"),
-                func.max(SearchQuery.created_at).label("last_searched")
-            )
-            .group_by(SearchQuery.query_text)
-            .order_by(desc("search_count"))
-            .limit(limit)
-        )
-        
-        result = await self.session.execute(query)
-        return [
-            {
-                "query": row.query_text,
-                "count": row.search_count,
-                "avg_results": row.avg_results,
-                "last_searched": row.last_searched
-            }
-            for row in result
-        ]
-
-    async def get_search_analytics(self, days: int = 30) -> Dict[str, Any]:
-        """Get search analytics for the specified period."""
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
-        
-        # Total searches
-        total_query = select(func.count(SearchQuery.id)).where(
-            SearchQuery.created_at >= cutoff_date
-        )
-        total_searches = await self.session.scalar(total_query)
-        
-        # Average results per search
-        avg_query = select(func.avg(SearchQuery.total_results)).where(
-            SearchQuery.created_at >= cutoff_date
-        )
-        avg_results = await self.session.scalar(avg_query)
-        
-        # Top sources
-        source_query = (
-            select(
-                SearchResult.source,
-                func.count(SearchResult.id).label("count")
-            )
-            .join(SearchQuery)
-            .where(SearchQuery.created_at >= cutoff_date)
-            .group_by(SearchResult.source)
-            .order_by(desc("count"))
-            .limit(10)
-        )
-        source_result = await self.session.execute(source_query)
-        top_sources = [{"source": row.source, "count": row.count} for row in source_result]
-        
-        return {
-            "period_days": days,
-            "total_searches": total_searches or 0,
-            "average_results_per_search": round(avg_results or 0, 2),
-            "top_sources": top_sources
-        }
-
-    async def save_search(
-        self, 
-        name: str, 
-        query_text: str, 
-        year: int = None, 
-        jurisdiction: str = None,
-        user_ip: str = None,
-        description: str = None
-    ) -> SavedSearch:
-        """Save a search for later use."""
-        saved_search = SavedSearch(
-            name=name,
-            description=description,
-            query_text=query_text,
-            year=year,
-            jurisdiction=jurisdiction,
-            user_ip=user_ip
-        )
-        self.session.add(saved_search)
-        await self.session.commit()
-        await self.session.refresh(saved_search)
-        return saved_search
-
-    async def get_saved_searches(self, user_ip: str) -> List[SavedSearch]:
-        """Get saved searches for a user."""
-        query = select(SavedSearch).where(
-            SavedSearch.user_ip == user_ip
-        ).order_by(desc(SavedSearch.created_at))
-        
-        result = await self.session.execute(query)
-        return result.scalars().all()
-
-    async def log_api_usage(
+        Args:
+            query_id: ID of the search query
+            results: List of search result dictionaries
+            
+        Returns:
+            List of created SearchResult instances
+        """
+        try:
+            search_results = []
+            
+            for result_data in results:
+                search_result = SearchResult(
+                    query_id=query_id,
+                    title=result_data.get('title', ''),
+                    description=result_data.get('description', ''),
+                    amount=result_data.get('amount'),
+                    date=result_data.get('date'),
+                    source=result_data.get('source', ''),
+                    vendor=result_data.get('vendor'),
+                    agency=result_data.get('agency'),
+                    url=result_data.get('url'),
+                    record_type=result_data.get('record_type'),
+                    year=result_data.get('year'),
+                    raw_data=result_data.get('raw_data')
+                )
+                
+                search_results.append(search_result)
+                self.db.add(search_result)
+            
+            await self.db.commit()
+            
+            logger.info(f"✅ Stored {len(search_results)} search results for query {query_id}")
+            return search_results
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to store search results: {e}")
+            await self.db.rollback()
+            raise
+    
+    async def update_search_query_results(
         self,
-        endpoint: str,
-        method: str,
-        user_ip: str = None,
-        user_agent: str = None,
-        query_params: Dict = None,
-        request_body: Dict = None,
-        status_code: int = None,
-        response_time_ms: int = None,
-        response_size_bytes: int = None,
-        error_message: str = None,
-        error_type: str = None
-    ) -> ApiUsageLog:
-        """Log API usage for monitoring."""
-        log_entry = ApiUsageLog(
-            endpoint=endpoint,
-            method=method,
-            user_ip=user_ip,
-            user_agent=user_agent,
-            query_params=query_params,
-            request_body=request_body,
-            status_code=status_code,
-            response_time_ms=response_time_ms,
-            response_size_bytes=response_size_bytes,
-            error_message=error_message,
-            error_type=error_type
-        )
-        self.session.add(log_entry)
-        await self.session.commit()
-        return log_entry
-
+        query_id: int,
+        results_metadata: Dict[str, Any],
+        execution_time_ms: int
+    ) -> None:
+        """
+        Update search query with results metadata.
+        
+        Args:
+            query_id: ID of the search query
+            results_metadata: Metadata about results (total_hits, etc.)
+            execution_time_ms: Query execution time in milliseconds
+        """
+        try:
+            # Calculate totals
+            total_results = results_metadata.get('total_results', 0)
+            total_hits = results_metadata.get('total_hits', {})
+            
+            # Update query record
+            await self.db.execute(
+                update(SearchQuery)
+                .where(SearchQuery.id == query_id)
+                .values(
+                    total_results=total_results,
+                    sources_queried=list(total_hits.keys()),
+                    execution_time_ms=execution_time_ms
+                )
+            )
+            
+            await self.db.commit()
+            
+            logger.info(f"✅ Updated search query {query_id} with results metadata")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to update search query metadata: {e}")
+            await self.db.rollback()
+    
     async def update_data_source_status(
         self,
         source_name: str,
-        is_available: bool = True,
-        response_time_ms: int = None,
-        error_message: str = None
-    ) -> DataSourceStatus:
-        """Update data source status."""
-        # Try to get existing record
-        query = select(DataSourceStatus).where(DataSourceStatus.source_name == source_name)
-        result = await self.session.execute(query)
-        status = result.scalar_one_or_none()
+        is_available: bool,
+        response_time_ms: Optional[int] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """
+        Update data source status and performance metrics.
         
-        if not status:
-            # Create new record
-            status = DataSourceStatus(source_name=source_name)
-            self.session.add(status)
-        
-        # Update status
-        status.is_available = is_available
-        status.total_queries += 1
-        
-        if is_available:
-            status.last_successful_query = datetime.utcnow()
-            if response_time_ms:
-                # Update rolling average
-                if status.average_response_time_ms:
-                    status.average_response_time_ms = (
-                        status.average_response_time_ms + response_time_ms
-                    ) // 2
+        Args:
+            source_name: Name of the data source
+            is_available: Whether the source is currently available
+            response_time_ms: Response time in milliseconds
+            error_message: Error message if source failed
+        """
+        try:
+            # Check if data source status record exists
+            query = select(DataSourceStatus).where(DataSourceStatus.source_name == source_name)
+            result = await self.db.execute(query)
+            status_record = result.scalar_one_or_none()
+            
+            current_time = datetime.utcnow()
+            
+            if status_record:
+                # Update existing record
+                status_record.is_available = is_available
+                status_record.updated_at = current_time
+                
+                if is_available:
+                    status_record.last_successful_query = current_time
+                    status_record.total_queries += 1
+                    
+                    # Update average response time
+                    if response_time_ms is not None:
+                        if status_record.average_response_time_ms:
+                            # Calculate running average
+                            status_record.average_response_time_ms = int(
+                                (status_record.average_response_time_ms + response_time_ms) / 2
+                            )
+                        else:
+                            status_record.average_response_time_ms = response_time_ms
                 else:
-                    status.average_response_time_ms = response_time_ms
-        else:
-            status.error_count += 1
-            status.last_error = error_message
-            status.last_error_time = datetime.utcnow()
-        
-        # Calculate success rate
-        status.success_rate = (
-            (status.total_queries - status.error_count) / status.total_queries * 100
-        ) if status.total_queries > 0 else 100.0
-        
-        await self.session.commit()
-        await self.session.refresh(status)
-        return status
-
-    async def get_data_source_status(self) -> List[DataSourceStatus]:
-        """Get status of all data sources."""
-        query = select(DataSourceStatus).order_by(DataSourceStatus.source_name)
-        result = await self.session.execute(query)
-        return result.scalars().all()
-
-    async def create_or_update_entity_profile(
+                    status_record.error_count += 1
+                    status_record.last_error = error_message
+                    status_record.last_error_time = current_time
+                
+                # Calculate success rate
+                if status_record.total_queries > 0:
+                    success_count = status_record.total_queries - status_record.error_count
+                    status_record.success_rate = (success_count / status_record.total_queries) * 100
+            else:
+                # Create new record
+                status_record = DataSourceStatus(
+                    source_name=source_name,
+                    is_available=is_available,
+                    last_successful_query=current_time if is_available else None,
+                    last_error=error_message if not is_available else None,
+                    last_error_time=current_time if not is_available else None,
+                    average_response_time_ms=response_time_ms,
+                    total_queries=1,
+                    error_count=0 if is_available else 1,
+                    success_rate=100.0 if is_available else 0.0
+                )
+                
+                self.db.add(status_record)
+            
+            await self.db.commit()
+            
+            logger.debug(f"✅ Updated data source status: {source_name} (available: {is_available})")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to update data source status for {source_name}: {e}")
+            await self.db.rollback()
+    
+    async def get_search_history(
         self,
-        entity_name: str,
-        entity_type: str = None,
-        source: str = None,
-        amount: float = None,
-        record_date: datetime = None
-    ) -> EntityProfile:
-        """Create or update entity profile with aggregated data."""
-        # Try to find existing profile
-        query = select(EntityProfile).where(EntityProfile.entity_name == entity_name)
-        result = await self.session.execute(query)
-        profile = result.scalar_one_or_none()
+        limit: int = 100,
+        user_ip: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get recent search history.
         
-        if not profile:
-            # Create new profile
-            profile = EntityProfile(
-                entity_name=entity_name,
-                entity_type=entity_type,
-                canonical_name=entity_name.strip().title(),
-                sources={}
+        Args:
+            limit: Maximum number of queries to return
+            user_ip: Optional IP filter for user-specific history
+            
+        Returns:
+            List of search query dictionaries with metadata
+        """
+        try:
+            query = select(SearchQuery).order_by(SearchQuery.created_at.desc())
+            
+            if user_ip:
+                query = query.where(SearchQuery.user_ip == user_ip)
+            
+            query = query.limit(limit)
+            
+            result = await self.db.execute(query)
+            queries = result.scalars().all()
+            
+            history = []
+            for query_record in queries:
+                history.append({
+                    'id': query_record.id,
+                    'query_text': query_record.query_text,
+                    'year': query_record.year,
+                    'jurisdiction': query_record.jurisdiction,
+                    'total_results': query_record.total_results,
+                    'sources_queried': query_record.sources_queried,
+                    'execution_time_ms': query_record.execution_time_ms,
+                    'created_at': query_record.created_at.isoformat()
+                })
+            
+            return history
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get search history: {e}")
+            return []
+    
+    async def get_data_source_status(self) -> List[Dict[str, Any]]:
+        """
+        Get current status of all data sources.
+        
+        Returns:
+            List of data source status dictionaries
+        """
+        try:
+            query = select(DataSourceStatus).order_by(DataSourceStatus.source_name)
+            result = await self.db.execute(query)
+            status_records = result.scalars().all()
+            
+            status_list = []
+            for record in status_records:
+                status_list.append({
+                    'source_name': record.source_name,
+                    'is_available': record.is_available,
+                    'last_successful_query': record.last_successful_query.isoformat() if record.last_successful_query else None,
+                    'last_error': record.last_error,
+                    'last_error_time': record.last_error_time.isoformat() if record.last_error_time else None,
+                    'average_response_time_ms': record.average_response_time_ms,
+                    'total_queries': record.total_queries,
+                    'error_count': record.error_count,
+                    'success_rate': record.success_rate,
+                    'updated_at': record.updated_at.isoformat() if record.updated_at else None
+                })
+            
+            return status_list
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get data source status: {e}")
+            return []
+    
+    async def get_search_analytics(
+        self,
+        days: int = 30
+    ) -> Dict[str, Any]:
+        """
+        Get search analytics for the specified time period.
+        
+        Args:
+            days: Number of days to analyze
+            
+        Returns:
+            Analytics dictionary with search statistics
+        """
+        try:
+            # Calculate date range
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=days)
+            
+            # Query search statistics
+            query = select(
+                func.count(SearchQuery.id).label('total_searches'),
+                func.avg(SearchQuery.execution_time_ms).label('avg_execution_time'),
+                func.sum(SearchQuery.total_results).label('total_results_found')
+            ).where(
+                SearchQuery.created_at >= start_date
             )
-            self.session.add(profile)
-        
-        # Update aggregated data
-        if source:
-            sources = profile.sources or {}
-            sources[source] = sources.get(source, 0) + 1
-            profile.sources = sources
-        
-        if amount:
-            profile.total_amount = (profile.total_amount or 0) + amount
-        
-        if record_date:
-            if not profile.first_seen_date or record_date < profile.first_seen_date:
-                profile.first_seen_date = record_date
-            if not profile.last_seen_date or record_date > profile.last_seen_date:
-                profile.last_seen_date = record_date
-        
-        await self.session.commit()
-        await self.session.refresh(profile)
-        return profile
-
-    async def search_entities(
-        self, 
-        query: str, 
-        limit: int = 20
-    ) -> List[EntityProfile]:
-        """Search entity profiles by name."""
-        search_query = select(EntityProfile).where(
-            or_(
-                EntityProfile.entity_name.ilike(f"%{query}%"),
-                EntityProfile.canonical_name.ilike(f"%{query}%")
-            )
-        ).order_by(desc(EntityProfile.total_amount)).limit(limit)
-        
-        result = await self.session.execute(search_query)
-        return result.scalars().all() 
+            
+            result = await self.db.execute(query)
+            stats = result.first()
+            
+            # Query top search terms
+            top_queries_query = select(
+                SearchQuery.query_text,
+                func.count(SearchQuery.id).label('search_count')
+            ).where(
+                SearchQuery.created_at >= start_date
+            ).group_by(
+                SearchQuery.query_text
+            ).order_by(
+                func.count(SearchQuery.id).desc()
+            ).limit(10)
+            
+            result = await self.db.execute(top_queries_query)
+            top_queries = result.all()
+            
+            return {
+                'period_days': days,
+                'total_searches': stats.total_searches or 0,
+                'avg_execution_time_ms': int(stats.avg_execution_time or 0),
+                'total_results_found': stats.total_results_found or 0,
+                'top_queries': [
+                    {'query': query, 'count': count}
+                    for query, count in top_queries
+                ],
+                'generated_at': end_date.isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get search analytics: {e}")
+            return {
+                'period_days': days,
+                'total_searches': 0,
+                'avg_execution_time_ms': 0,
+                'total_results_found': 0,
+                'top_queries': [],
+                'generated_at': datetime.utcnow().isoformat()
+            }
