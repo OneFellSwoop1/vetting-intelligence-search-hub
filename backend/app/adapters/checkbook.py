@@ -1,27 +1,30 @@
 """
 NYC Checkbook adapter for searching contract and spending data.
-Updated to use CheckbookNYC's dedicated API endpoints instead of raw Socrata datasets.
+Refactored to use BaseAdapter for standardized functionality.
 """
 import httpx
 import logging
 import os
 import urllib.parse
 from typing import List, Dict, Any, Optional
-from ..cache import cache_service
+
+from .base import HTTPAdapter
 from ..schemas import SearchResult
-from ..resource_management import managed_http_client
 from ..search_utils.company_normalizer import generate_variations, similarity
 from ..error_handling import handle_async_errors, DataSourceError
 
 logger = logging.getLogger(__name__)
 
-class CheckbookNYCAdapter:
+class CheckbookNYCAdapter(HTTPAdapter):
     """
     Adapter for NYC Checkbook using the official CheckbookNYC API endpoints.
     This provides more reliable vendor searches using prime_vendor and vendor parameters.
     """
     
     def __init__(self):
+        """Initialize CheckbookNYC adapter with base functionality."""
+        super().__init__()
+        
         # Use CheckbookNYC's official API endpoints
         self.contracts_url = "https://www.checkbooknyc.com/api/contracts"
         self.spending_url = "https://www.checkbooknyc.com/api/spending"
@@ -31,7 +34,6 @@ class CheckbookNYCAdapter:
         
         # Compatibility attributes for search router health checks
         self.base_url = self.socrata_base_url
-        self.cache_ttl = 3600  # 1 hour cache
         self.app_token = os.getenv("SOCRATA_APP_TOKEN")
         self.api_key_id = os.getenv("SOCRATA_API_KEY_ID")
         self.api_key_secret = os.getenv("SOCRATA_API_KEY_SECRET")
@@ -47,15 +49,14 @@ class CheckbookNYCAdapter:
             pool=5.0       # Pool timeout
         )
         
-        # Initialize cache
-        self.cache = cache_service
-        if self.cache.enabled:
-            logger.info("Redis caching enabled for Checkbook NYC adapter")
+        # Initialize cache (already done in base class)
+        if cache_service.is_available():
+            logger.info("✅ Redis caching enabled for Checkbook NYC adapter")
 
     @handle_async_errors(default_return=[], reraise_on=(DataSourceError,))
-    async def search(self, query: str, limit: int = 50, year: int = None) -> List[SearchResult]:
+    async def search(self, query: str, limit: int = 50, year: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Search NYC Checkbook using the official API endpoints.
+        Search NYC Checkbook using the official API endpoints with base class caching.
         
         Args:
             query: Vendor name or search term
@@ -63,15 +64,20 @@ class CheckbookNYCAdapter:
             year: Optional fiscal year filter
             
         Returns:
-            List of normalized contract and spending records
+            List of normalized result dictionaries
         """
         logger.info(f"Starting CheckbookNYC search for: '{query}' (year: {year})")
         
+        # Use base class caching
+        return await self._cached_search(query, year, self._execute_search)
+    
+    async def _execute_search(self, query: str, year: Optional[int]) -> List[Dict[str, Any]]:
+        """Execute the actual CheckbookNYC search."""
         all_results = []
 
         async with managed_http_client("checkbook") as client:
-            # Ensure limit is set to a default value if None
-            search_limit = limit or 50
+            # Use default limit
+            search_limit = 50
 
             # UPDATED: Since CheckbookNYC API is blocked by anti-bot services,
             # prioritize Socrata API which is working reliably
@@ -253,11 +259,50 @@ class CheckbookNYCAdapter:
                             if not any(r.get('id') == normalized.get('id') for r in all_results):
                                 all_results.append(normalized)
             
-            return all_results
+            # Use base class deduplication
+            unique_results = self._deduplicate_results(all_results)
+            return unique_results
             
         except Exception as e:
             logger.error(f"❌ Enhanced Socrata search failed: {e}")
             return []
+    
+    def _normalize_result(self, raw_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Normalize raw Checkbook data to standard format (BaseAdapter interface).
+        
+        Args:
+            raw_data: Raw data from Socrata API
+            
+        Returns:
+            Normalized result dictionary or None if invalid
+        """
+        try:
+            # Use existing normalization logic
+            if 'contract_amount' in raw_data or 'contract_id' in raw_data:
+                return self._normalize_contract_record(raw_data)
+            elif 'spending_amount' in raw_data or 'check_amount' in raw_data:
+                return self._normalize_spending_record(raw_data)
+            else:
+                # Generic normalization for other record types
+                vendor = raw_data.get('vendor_name', raw_data.get('payee_name', 'Unknown Vendor'))
+                agency = raw_data.get('agency_name', raw_data.get('department', 'Unknown Agency'))
+                amount = self._parse_amount(raw_data.get('amount', raw_data.get('total_amount', 0)))
+                date = self._parse_date(raw_data.get('start_date', raw_data.get('issue_date')))
+                
+                return {
+                    'source': 'checkbook',
+                    'title': f"NYC Record: {vendor}",
+                    'vendor': vendor,
+                    'agency': agency,
+                    'amount': amount,
+                    'date': date,
+                    'description': raw_data.get('purpose', raw_data.get('description', '')),
+                    'raw_data': raw_data
+                }
+        except Exception as e:
+            self.logger.error(f"❌ Error normalizing Checkbook result: {e}")
+            return None
 
     async def _search_socrata_fallback(self, client: httpx.AsyncClient, query: str, limit: int) -> List[Dict[str, Any]]:
         """Legacy fallback method - now redirects to enhanced version."""
