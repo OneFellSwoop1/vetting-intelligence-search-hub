@@ -5,12 +5,15 @@ from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..user_management import (
     UserManager, UserRegistration, UserLogin, UserPreferences,
     user_manager, get_current_user, get_current_user_optional,
-    check_user_rate_limit, require_role, get_user_ip, UserProfile
+    check_user_rate_limit, require_role, get_user_ip, UserProfile,
+    get_current_user_db, get_current_user_optional_db, check_user_rate_limit_db
 )
+from ..database import get_async_db
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +22,16 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 @router.post("/register")
 async def register_user(
     registration: UserRegistration,
-    request: Request
+    request: Request,
+    db: AsyncSession = Depends(get_async_db)
 ) -> Dict[str, Any]:
-    """Register a new user account."""
+    """Register a new user account with database persistence."""
     try:
         # Get user IP for logging
         user_ip = get_user_ip(request)
         
-        # Register user
-        result = user_manager.register_user(registration)
+        # Register user in database
+        result = await user_manager.register_user_db(registration, db)
         
         logger.info(f"User registration successful: {registration.username} from {user_ip}")
         
@@ -49,15 +53,16 @@ async def register_user(
 @router.post("/login")
 async def login_user(
     login: UserLogin,
-    request: Request
+    request: Request,
+    db: AsyncSession = Depends(get_async_db)
 ) -> Dict[str, Any]:
-    """Authenticate user and return access token."""
+    """Authenticate user and return access token with database lookup."""
     try:
         # Get user IP for logging
         user_ip = get_user_ip(request)
         
-        # Authenticate user
-        result = user_manager.authenticate_user(login)
+        # Authenticate user from database
+        result = await user_manager.authenticate_user_db(login, db)
         
         logger.info(f"User login successful: {login.username} from {user_ip}")
         

@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from .routers import search, correlation, auth
 from .websocket import websocket_endpoint
 from .resource_management import cleanup_manager
+from .middleware.rate_limit import IPRateLimitMiddleware
 
 # Enhanced environment variable loading with validation
 def load_environment_variables():
@@ -76,6 +77,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+)
+
+# Add IP-based rate limiting middleware
+ip_rate_limit = int(os.getenv("IP_RATE_LIMIT_PER_MINUTE", "60"))
+app.add_middleware(
+    IPRateLimitMiddleware,
+    requests_per_minute=ip_rate_limit
 )
 
 # Include routers

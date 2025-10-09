@@ -14,8 +14,11 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .cache import cache_service
+from .database import get_async_db
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +364,222 @@ async def get_current_user_optional(
             return user
     
     # Return guest user if no valid token
+        return user_manager.guest_user
+
+    async def register_user_db(
+        self, 
+        registration: UserRegistration, 
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """Register a new user in the database."""
+        from .models import User  # Import here to avoid circular imports
+        
+        # Check if username already exists
+        query = select(User).where(User.username == registration.username)
+        result = await db.execute(query)
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already registered"
+            )
+        
+        # Check if email already exists
+        query = select(User).where(User.email == registration.email)
+        result = await db.execute(query)
+        existing_email = result.scalar_one_or_none()
+        
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        
+        # Generate user ID
+        user_id = hashlib.sha256(
+            f"{registration.username}{registration.email}{time.time()}".encode()
+        ).hexdigest()[:16]
+        
+        # Hash password
+        hashed_password = self.hash_password(registration.password)
+        
+        # Create user in database
+        new_user = User(
+            user_id=user_id,
+            username=registration.username,
+            email=registration.email,
+            hashed_password=hashed_password,
+            role="registered",
+            rate_limit_tier="registered",
+            is_active=True,
+            preferences={
+                "organization": getattr(registration, 'organization', None),
+                "notifications_enabled": True,
+                "search_history_enabled": True,
+                "export_format": "json",
+                "results_per_page": 50
+            }
+        )
+        
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+        
+        # Create access token
+        token = self.create_access_token(user_id, registration.username)
+        
+        logger.info(f"✅ User registered in database: {registration.username} (ID: {user_id})")
+        
+        return {
+            "user_id": user_id,
+            "username": registration.username,
+            "token": token,
+            "expires_in": JWT_EXPIRE_HOURS * 3600,
+            "role": "registered",
+            "rate_limit_tier": "registered"
+        }
+
+    async def authenticate_user_db(
+        self, 
+        login: UserLogin, 
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """Authenticate a user from database."""
+        from .models import User
+        
+        # Find user by username
+        query = select(User).where(User.username == login.username)
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password"
+            )
+        
+        # Verify password
+        if not self.verify_password(login.password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password"
+            )
+        
+        # Check if user is active
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is disabled"
+            )
+        
+        # Update last login
+        user.last_login = datetime.utcnow()
+        await db.commit()
+        
+        # Create access token
+        token = self.create_access_token(user.user_id, user.username)
+        
+        logger.info(f"✅ User authenticated from database: {login.username}")
+        
+        return {
+            "user_id": user.user_id,
+            "username": user.username,
+            "token": token,
+            "expires_in": JWT_EXPIRE_HOURS * 3600,
+            "role": user.role,
+            "rate_limit_tier": user.rate_limit_tier
+        }
+
+    async def get_user_by_token_db(
+        self, 
+        token: str, 
+        db: AsyncSession
+    ) -> Optional[UserProfile]:
+        """Get user profile from token via database."""
+        user_id = self.verify_token(token)
+        if not user_id:
+            return None
+        
+        return await self.get_user_by_id_db(user_id, db)
+
+    async def get_user_by_id_db(
+        self, 
+        user_id: str, 
+        db: AsyncSession
+    ) -> Optional[UserProfile]:
+        """Get user profile by user_id from database."""
+        from .models import User
+        
+        query = select(User).where(User.user_id == user_id)
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            return None
+        
+        return UserProfile(
+            user_id=user.user_id,
+            username=user.username,
+            email=user.email,
+            role=user.role,
+            preferences=user.preferences or {},
+            created_at=user.created_at,
+            last_login=user.last_login,
+            is_active=user.is_active,
+            rate_limit_tier=user.rate_limit_tier
+        )
+
+# Database-backed FastAPI dependencies
+async def get_current_user_db(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_async_db)
+) -> UserProfile:
+    """FastAPI dependency to get current authenticated user from database."""
+    token = credentials.credentials
+    user = await user_manager.get_user_by_token_db(token, db)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return user
+
+
+async def get_current_user_optional_db(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db)
+) -> UserProfile:
+    """FastAPI dependency to get current user from database or guest."""
+    auth_header = request.headers.get("Authorization")
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        user = await user_manager.get_user_by_token_db(token, db)
+        if user:
+            return user
+    
     return user_manager.guest_user
+
+
+async def check_user_rate_limit_db(
+    user: UserProfile = Depends(get_current_user_optional_db)
+) -> UserProfile:
+    """FastAPI dependency to check rate limits with database user."""
+    if not user_manager.check_rate_limit(user):
+        tier_config = RateLimitConfig.TIERS.get(user.rate_limit_tier, RateLimitConfig.TIERS["guest"])
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded. Tier: {user.rate_limit_tier}, "
+                   f"Hourly limit: {tier_config['requests_per_hour']}, "
+                   f"Daily limit: {tier_config['requests_per_day']}"
+        )
+    
+    return user
+
 
 async def check_user_rate_limit(user: UserProfile = Depends(get_current_user_optional)) -> UserProfile:
     """FastAPI dependency to check rate limits."""
