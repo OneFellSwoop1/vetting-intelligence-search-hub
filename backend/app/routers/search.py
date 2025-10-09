@@ -12,6 +12,7 @@ from ..adapters.checkbook import CheckbookNYCAdapter
 from ..adapters.nys_ethics import NYSEthicsAdapter  
 from ..adapters.senate_lda import SenateHouseLDAAdapter
 from ..adapters.nyc_lobbyist import NYCLobbyistAdapter
+from ..adapters.fec import FECAdapter
 
 # Import the new service
 from ..services.checkbook import CheckbookNYCService
@@ -162,7 +163,7 @@ def analyze_results(results: list) -> Dict[str, Any]:
                             "search_stats": {
                                 "total_results": 25,
                                 "execution_time_ms": 1250,
-                                "cache_hit": false,
+                                "cache_hit": False,
                                 "sources_queried": ["checkbook", "senate_lda", "nyc_lobbyist"]
                             },
                             "analytics": {
@@ -298,7 +299,7 @@ async def search(
     
     # Determine which sources to use
     # Re-enabled nys_ethics with optimized Socrata API implementation
-    available_sources = ["checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist"]
+    available_sources = ["checkbook", "nys_ethics", "senate_lda", "nyc_lobbyist", "fec"]
     
     # Filter by sources if specified
     if request.sources:
@@ -311,7 +312,7 @@ async def search(
         jurisdiction_filter = {
             "NYC": ["checkbook", "nyc_lobbyist"],
             "NYS": ["nys_ethics"],
-            "Federal": ["senate_lda"]
+            "Federal": ["senate_lda", "fec"]
         }
         
         allowed_sources = jurisdiction_filter.get(request.jurisdiction, [])
@@ -336,6 +337,9 @@ async def search(
         elif source == "nyc_lobbyist":
             adapter = NYCLobbyistAdapter()
             search_tasks.append(("nyc_lobbyist", adapter.search(request.query, year_int)))
+        elif source == "fec":
+            adapter = FECAdapter()
+            search_tasks.append(("fec", adapter.search(request.query, year_int)))
     
     # Execute all searches in parallel with timeout
     results = []
@@ -605,7 +609,7 @@ async def checkbook_health_check():
 async def test_checkbook_integration(
     query: str = Query("Apple", description="Test query to search"),
     year: Optional[int] = Query(None, description="Optional fiscal year filter"),
-    user: UserProfile = Depends(check_user_rate_limit)
+    user: UserProfile = Depends(check_user_rate_limit_db)
 ):
     """
     Test endpoint for Checkbook NYC integration
@@ -653,7 +657,7 @@ async def get_checkbook_data(
     feed_id: Optional[str] = Query(None, description="Feed ID for data-feed domain"),
     records_from: int = Query(1, description="Starting record number for pagination"),
     max_records: int = Query(20000, description="Maximum records per request"),
-    user: UserProfile = Depends(check_user_rate_limit)
+    user: UserProfile = Depends(check_user_rate_limit_db)
 ):
     """
     Direct access to Checkbook NYC official XML API

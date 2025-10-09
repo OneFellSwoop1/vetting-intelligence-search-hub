@@ -278,4 +278,191 @@ class EntityProfile(Base):
     __table_args__ = (
         Index("ix_entity_profiles_name_type", "entity_name", "entity_type"),
         Index("ix_entity_profiles_amount_risk", "total_amount", "risk_score"),
+    )
+
+
+class FECContribution(Base):
+    """Model for storing FEC campaign contribution records."""
+    
+    __tablename__ = "fec_contributions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # FEC identifiers
+    transaction_id = Column(String(100), unique=True, index=True)
+    committee_id = Column(String(20), index=True)
+    candidate_id = Column(String(20), index=True, nullable=True)
+    
+    # Contribution details
+    contributor_name = Column(String(500), index=True)
+    contributor_city = Column(String(100))
+    contributor_state = Column(String(10), index=True)
+    contributor_zip = Column(String(20))
+    contributor_employer = Column(String(500), index=True)
+    contributor_occupation = Column(String(500), index=True)
+    
+    # Financial information
+    contribution_amount = Column(Float, index=True)
+    contribution_date = Column(DateTime(timezone=True), index=True)
+    
+    # Committee/recipient information
+    committee_name = Column(String(500), index=True)
+    committee_type = Column(String(50))
+    
+    # Election information
+    election_type = Column(String(50))
+    two_year_transaction_period = Column(Integer, index=True)
+    
+    # Metadata
+    raw_data = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index("ix_fec_contributions_contributor_amount", "contributor_name", "contribution_amount"),
+        Index("ix_fec_contributions_committee_date", "committee_name", "contribution_date"),
+        Index("ix_fec_contributions_period_state", "two_year_transaction_period", "contributor_state"),
+    )
+
+
+class FECDisbursement(Base):
+    """Model for storing FEC campaign disbursement records."""
+    
+    __tablename__ = "fec_disbursements"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # FEC identifiers
+    transaction_id = Column(String(100), unique=True, index=True)
+    committee_id = Column(String(20), index=True)
+    
+    # Disbursement details
+    recipient_name = Column(String(500), index=True)
+    recipient_city = Column(String(100))
+    recipient_state = Column(String(10), index=True)
+    
+    # Financial information
+    disbursement_amount = Column(Float, index=True)
+    disbursement_date = Column(DateTime(timezone=True), index=True)
+    disbursement_description = Column(Text)
+    
+    # Committee information
+    committee_name = Column(String(500), index=True)
+    committee_type = Column(String(50))
+    
+    # Election information
+    two_year_transaction_period = Column(Integer, index=True)
+    
+    # Metadata
+    raw_data = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index("ix_fec_disbursements_recipient_amount", "recipient_name", "disbursement_amount"),
+        Index("ix_fec_disbursements_committee_date", "committee_name", "disbursement_date"),
+        Index("ix_fec_disbursements_period_state", "two_year_transaction_period", "recipient_state"),
+    )
+
+
+class FECCandidate(Base):
+    """Model for storing FEC candidate information."""
+    
+    __tablename__ = "fec_candidates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # FEC identifiers
+    candidate_id = Column(String(20), unique=True, index=True)
+    
+    # Candidate information
+    name = Column(String(500), index=True)
+    party = Column(String(10), index=True)
+    party_full = Column(String(100))
+    office = Column(String(10), index=True)
+    office_full = Column(String(100))
+    state = Column(String(10), index=True)
+    district = Column(String(10))
+    
+    # Financial summary
+    total_receipts = Column(Float, index=True)
+    total_disbursements = Column(Float)
+    cash_on_hand = Column(Float)
+    debt = Column(Float)
+    
+    # Election information
+    election_years = Column(JSON)  # Array of election years
+    cycles = Column(JSON)  # Array of election cycles
+    
+    # Dates
+    first_file_date = Column(DateTime(timezone=True))
+    last_file_date = Column(DateTime(timezone=True))
+    
+    # Status
+    candidate_status = Column(String(10))
+    active_through = Column(DateTime(timezone=True))
+    
+    # Metadata
+    raw_data = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index("ix_fec_candidates_name_party", "name", "party"),
+        Index("ix_fec_candidates_office_state", "office", "state"),
+        Index("ix_fec_candidates_receipts", "total_receipts"),
+    )
+
+
+class FECCommittee(Base):
+    """Model for storing FEC committee information."""
+    
+    __tablename__ = "fec_committees"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # FEC identifiers
+    committee_id = Column(String(20), unique=True, index=True)
+    
+    # Committee information
+    name = Column(String(500), index=True)
+    committee_type = Column(String(10), index=True)
+    committee_type_full = Column(String(100))
+    designation = Column(String(10))
+    designation_full = Column(String(100))
+    organization_type = Column(String(10))
+    organization_type_full = Column(String(100))
+    
+    # Financial summary
+    total_receipts = Column(Float, index=True)
+    total_disbursements = Column(Float)
+    cash_on_hand = Column(Float)
+    debt = Column(Float)
+    
+    # Location information
+    city = Column(String(100))
+    state = Column(String(10), index=True)
+    zip_code = Column(String(20))
+    
+    # Election information
+    cycles = Column(JSON)  # Array of election cycles
+    
+    # Dates
+    first_file_date = Column(DateTime(timezone=True))
+    last_file_date = Column(DateTime(timezone=True))
+    
+    # Status
+    committee_status = Column(String(20))
+    
+    # Metadata
+    raw_data = Column(JSON)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index("ix_fec_committees_name_type", "name", "committee_type"),
+        Index("ix_fec_committees_state_receipts", "state", "total_receipts"),
+        Index("ix_fec_committees_designation", "designation"),
     ) 

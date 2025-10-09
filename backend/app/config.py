@@ -62,12 +62,14 @@ class Settings(BaseSettings):
     SOCRATA_API_KEY_ID: Optional[str] = Field(None, env="SOCRATA_API_KEY_ID")
     SOCRATA_API_KEY_SECRET: Optional[str] = Field(None, env="SOCRATA_API_KEY_SECRET")
     LDA_API_KEY: Optional[str] = Field(None, env="LDA_API_KEY")
+    FEC_API_KEY: Optional[str] = Field(None, env="FEC_API_KEY")
     
     # API Rate Limits (requests per second)
     SENATE_LDA_RATE_LIMIT: float = Field(0.25, env="SENATE_LDA_RATE_LIMIT")
     CHECKBOOK_RATE_LIMIT: float = Field(0.5, env="CHECKBOOK_RATE_LIMIT")
     NYS_ETHICS_RATE_LIMIT: float = Field(1.0, env="NYS_ETHICS_RATE_LIMIT")
     NYC_LOBBYIST_RATE_LIMIT: float = Field(1.0, env="NYC_LOBBYIST_RATE_LIMIT")
+    FEC_RATE_LIMIT: float = Field(0.28, env="FEC_RATE_LIMIT")  # 1000/hour = ~0.28/second
     
     # CORS Configuration
     CORS_ORIGINS: str = Field(
@@ -149,9 +151,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         """Get CORS origins as a list."""
+        if isinstance(self.CORS_ORIGINS, list):
+            return self.CORS_ORIGINS
         if isinstance(self.CORS_ORIGINS, str):
             return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
-        return self.CORS_ORIGINS
+        return ["http://localhost:3000"]
     
     @property
     def database_url_sync(self) -> str:
