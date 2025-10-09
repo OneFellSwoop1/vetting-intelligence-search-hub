@@ -1210,9 +1210,9 @@ export default function VettingIntelligenceHub() {
                   amount: typeof result.amount === 'string' 
                     ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
                     : result.amount,
-                  description: result.description || '',
+                  description: result.description || 'FEC Campaign Finance Record',
                   date: result.date,
-                  year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
+                  year: result.year ? String(result.year) : undefined,
                   url: result.url,
                   record_type: result.record_type,
                   // FEC-specific fields
