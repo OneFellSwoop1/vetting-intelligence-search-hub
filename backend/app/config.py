@@ -3,7 +3,8 @@
 import os
 import logging
 from typing import Optional, List, Dict, Any
-from pydantic import BaseSettings, Field, validator, SecretStr
+from pydantic import Field, validator, SecretStr
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
