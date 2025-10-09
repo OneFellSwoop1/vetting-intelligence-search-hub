@@ -101,7 +101,139 @@ def analyze_results(results: list) -> Dict[str, Any]:
         'source_breakdown': sorted(sources.items(), key=lambda x: x[1], reverse=True)
     }
 
-@router.post("/search")
+@router.post(
+    "/search",
+    summary="Multi-source Government Data Search",
+    description="""
+    **Comprehensive search across multiple government transparency data sources**
+    
+    This endpoint performs parallel searches across all configured data sources:
+    - 🏛️ NYC Checkbook (contracts and spending data)
+    - 🏛️ NYS Ethics (state lobbying records)  
+    - 🏛️ Federal Senate LDA (lobbying disclosures)
+    - 🤝 NYC Lobbyist (lobbying registrations)
+    
+    **Key Features:**
+    - ⚡ **Parallel execution** for sub-second response times
+    - 🔄 **Intelligent caching** with Redis (1-hour TTL)
+    - 📊 **Database persistence** for search history and analytics
+    - 🛡️ **Rate limiting** by user tier and IP address
+    - 📈 **Comprehensive analytics** with financial insights
+    
+    **Query Tips:**
+    - Use company names without legal suffixes (e.g., "Microsoft" not "Microsoft Corporation")
+    - Year filter improves accuracy and reduces search time
+    - Jurisdiction filter focuses search on specific government levels
+    
+    **Rate Limits:**
+    - Guest users: 50 requests/hour, 200/day
+    - Registered users: 200 requests/hour, 1000/day
+    - Premium users: 1000 requests/hour, 10000/day
+    """,
+    response_description="Standardized search results with analytics and metadata",
+    responses={
+        200: {
+            "description": "Search completed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "success",
+                        "message": "Search completed for 'Microsoft Corporation'",
+                        "data": {
+                            "total_hits": {
+                                "checkbook": 15,
+                                "senate_lda": 8,
+                                "nys_ethics": 0,
+                                "nyc_lobbyist": 2
+                            },
+                            "results": [
+                                {
+                                    "source": "checkbook",
+                                    "title": "NYC Contract: Microsoft Corporation",
+                                    "vendor": "Microsoft Corporation", 
+                                    "agency": "Department of Information Technology",
+                                    "amount": 500000.0,
+                                    "date": "2024-01-15",
+                                    "description": "Cloud services and software licensing",
+                                    "url": "https://checkbooknyc.com/contract/...",
+                                    "record_type": "contract"
+                                }
+                            ],
+                            "search_stats": {
+                                "total_results": 25,
+                                "execution_time_ms": 1250,
+                                "cache_hit": false,
+                                "sources_queried": ["checkbook", "senate_lda", "nyc_lobbyist"]
+                            },
+                            "analytics": {
+                                "total_amount": 2500000.0,
+                                "average_amount": 100000.0,
+                                "date_range": {
+                                    "earliest": "2020-01-01",
+                                    "latest": "2024-12-31"
+                                },
+                                "source_breakdown": {
+                                    "checkbook": 15,
+                                    "senate_lda": 8,
+                                    "nyc_lobbyist": 2
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Invalid request parameters",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "error",
+                        "message": "Invalid search parameters",
+                        "error_code": "VALIDATION_ERROR"
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Authentication required",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "error",
+                        "message": "Authentication required",
+                        "error_code": "AUTHENTICATION_REQUIRED"
+                    }
+                }
+            }
+        },
+        429: {
+            "description": "Rate limit exceeded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "error",
+                        "message": "Rate limit exceeded. Maximum 200 requests per hour.",
+                        "error_code": "RATE_LIMIT_EXCEEDED"
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Internal server error",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "error",
+                        "message": "Search service temporarily unavailable",
+                        "error_code": "INTERNAL_ERROR"
+                    }
+                }
+            }
+        }
+    },
+    tags=["Search"]
+)
 @handle_async_errors(default_return={"error": "Search service temporarily unavailable"})
 async def search(
     request: SearchRequest,
@@ -110,8 +242,19 @@ async def search(
     db: AsyncSession = Depends(get_async_db)
 ):
     """
-    Search all data sources in parallel with database persistence.
-    Uses Redis caching for 24-hour result persistence and saves search history.
+    Execute comprehensive multi-source search with caching and persistence.
+    
+    This endpoint orchestrates searches across multiple government data sources
+    in parallel, normalizes results, caches them for performance, and saves
+    search history to the database for analytics and monitoring.
+    
+    The search process includes:
+    1. Authentication and rate limit validation
+    2. Cache lookup for previous results
+    3. Parallel execution across all data sources
+    4. Result normalization and deduplication
+    5. Database persistence for analytics
+    6. Response caching for performance
     """
     start_time = time.time()
     
