@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 import logging
 from ..schemas import SearchResult
 from urllib.parse import quote
+from ..search_utils.company_normalizer import generate_variations, similarity
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ def get_lda_api_key():
     """Get LDA API key from environment for higher rate limits"""
     api_key = os.getenv('LDA_API_KEY')
     if api_key:
-        logger.info(f"🔑 Using Senate LDA API key: {api_key[:8]}...{api_key[-8:]} for authenticated access")
+        logger.info(f"🔑 Using Senate LDA API key: ***AUTHENTICATED*** for enhanced rate limits")
         return api_key
     else:
         logger.warning(f"⚠️ No LDA_API_KEY found - using anonymous access with lower rate limits")
@@ -48,37 +49,24 @@ async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for search_year in years_to_search:
                 logger.info(f"📅 Searching Senate LDA for year: {search_year}")
-                
-                # SIMPLIFIED SEARCH: Try only the main query first, add variations only if needed
-                primary_search = await _search_single_term(client, query, search_year, headers, rate_limit_delay)
-                
-                # If primary search yields good results (10+), use those
-                if len(primary_search) >= 10:
-                    logger.info(f"✅ Found {len(primary_search)} results for '{query}' in {search_year} - using primary search only")
-                    results.extend(primary_search)
-                else:
-                    # Only try ONE additional variation if primary search had few results
-                    logger.info(f"⚡ Primary search yielded {len(primary_search)} results - trying one variation")
-                    variation_query = f"{query} LLC" if not query.endswith(('LLC', 'Inc', 'Corp', 'Corporation')) else query
-                    
-                    if variation_query != query:
-                        variation_results = await _search_single_term(client, variation_query, search_year, headers, rate_limit_delay)
-                        logger.info(f"✅ Variation search for '{variation_query}' yielded {len(variation_results)} results")
-                        
-                        # Combine and deduplicate
-                        combined = primary_search + variation_results
-                        deduplicated = _deduplicate_results(combined)
-                        results.extend(deduplicated)
-                    else:
-                        results.extend(primary_search)
-                
-                # Limit total results per year to avoid overwhelming the system
+
+                # Try a bounded set of query variations
+                variations = generate_variations(query, limit=4)
+                aggregated: List[Dict[str, Any]] = []
+                for vq in variations:
+                    part = await _search_single_term(client, vq, search_year, headers, rate_limit_delay)
+                    aggregated.extend(part)
+                    if len(aggregated) >= 50:
+                        break
+
+                deduped = _deduplicate_results(aggregated)
+                results.extend(deduped)
+
                 if len(results) >= 50:
-                    logger.info(f"🛑 Limiting results to 50 per search to avoid overwhelming the system")
+                    logger.info("🛑 Limiting results to 50 per search to avoid overwhelming the system")
                     results = results[:50]
                     break
-                
-                # Short delay between years
+
                 await asyncio.sleep(0.5)
             
         # Sort results by year (descending) and date (descending)
@@ -99,7 +87,7 @@ async def _search_single_term(client: httpx.AsyncClient, search_term: str, searc
         logger.info(f"📡 Making API call with query: '{search_term}' for year {search_year}")
         
         # Build URL with query parameters
-        base_url = "https://lda.senate.gov/api/v1/filings/"
+        base_url = f"{LDA_API_BASE}/filings/"
         params = {
             "client_name": search_term,
             "filing_year": search_year,
@@ -153,8 +141,9 @@ async def _search_single_term(client: httpx.AsyncClient, search_term: str, searc
             
         else:
             logger.warning(f"⚠️ API request failed with status {response.status_code} for '{search_term}' in {search_year}")
-            # For other errors, log the response text for debugging
-            logger.debug(f"Response text: {response.text[:200]}")
+            # For other errors, log the response text for debugging (only in development)
+            if os.getenv("DETAILED_ERRORS", "false").lower() == "true":
+                logger.debug(f"Response text: {response.text[:200]}")
         
         # Rate limiting delay
         await asyncio.sleep(rate_limit_delay)

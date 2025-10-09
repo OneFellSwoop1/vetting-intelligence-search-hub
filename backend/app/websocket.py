@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional, Any, Union
 from fastapi import WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
@@ -12,17 +12,39 @@ from .adapters.nys_ethics import NYSEthicsAdapter
 from .adapters.senate_lda import SenateHouseLDAAdapter
 from .adapters.nyc_lobbyist import NYCLobbyistAdapter
 
-async def search_all_sources(query: str, year: str = None, jurisdiction: str = None):
+# Create singleton adapter instances to avoid resource leaks
+_adapter_instances = {
+    'checkbook': None,
+    'nys_ethics': None,
+    'senate_lda': None,
+    'nyc_lobbyist': None
+}
+
+def get_adapter_instance(adapter_type: str) -> Union[CheckbookNYCAdapter, NYSEthicsAdapter, SenateHouseLDAAdapter, NYCLobbyistAdapter]:
+    """Get or create adapter instance to reuse connections."""
+    if _adapter_instances[adapter_type] is None:
+        if adapter_type == 'checkbook':
+            _adapter_instances[adapter_type] = CheckbookNYCAdapter()
+        elif adapter_type == 'nys_ethics':
+            _adapter_instances[adapter_type] = NYSEthicsAdapter()
+        elif adapter_type == 'senate_lda':
+            _adapter_instances[adapter_type] = SenateHouseLDAAdapter()
+        elif adapter_type == 'nyc_lobbyist':
+            _adapter_instances[adapter_type] = NYCLobbyistAdapter()
+    
+    return _adapter_instances[adapter_type]
+
+async def search_all_sources(query: str, year: Optional[str] = None, jurisdiction: Optional[str] = None) -> Dict[str, Any]:
     """Search all sources for WebSocket streaming."""
     # Convert year to int if provided
     year_int = int(year) if year and year.isdigit() else None
     
-    # Define all search tasks
+    # Define all search tasks using singleton instances
     search_tasks = [
-        ("checkbook", CheckbookNYCAdapter().search(query, year_int)),
-        ("nys_ethics", NYSEthicsAdapter().search(query, year_int)),
-        ("senate_lda", SenateHouseLDAAdapter().search(query, year_int)),
-        ("nyc_lobbyist", NYCLobbyistAdapter().search(query, year_int)),
+        ("checkbook", get_adapter_instance('checkbook').search(query, year_int)),
+        ("nys_ethics", get_adapter_instance('nys_ethics').search(query, year_int)),
+        ("senate_lda", get_adapter_instance('senate_lda').search(query, year_int)),
+        ("nyc_lobbyist", get_adapter_instance('nyc_lobbyist').search(query, year_int)),
     ]
     
     # Execute all searches in parallel

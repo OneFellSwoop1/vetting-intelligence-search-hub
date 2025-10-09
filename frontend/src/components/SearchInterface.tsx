@@ -79,7 +79,7 @@ const SearchInterface: React.FC<SearchInterfaceProps> = ({
       if (query.length < 2) return [];
       
       try {
-        const response = await fetch(`http://localhost:8000/api/v1/suggestions?q=${encodeURIComponent(query)}`);
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/suggestions?q=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error('Failed to fetch suggestions');
         const data = await response.json();
         return data.suggestions || [];

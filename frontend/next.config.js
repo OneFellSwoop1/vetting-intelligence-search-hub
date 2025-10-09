@@ -2,12 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   typescript: {
-    // Temporarily ignore build errors during migration
-    ignoreBuildErrors: false,
+    // Ignore build errors only in development
+    ignoreBuildErrors: process.env.NODE_ENV === 'development',
   },
   eslint: {
-    // Allow production builds to complete even if there are ESLint errors
-    ignoreDuringBuilds: false,
+    // Allow ESLint errors in development, strict in production
+    ignoreDuringBuilds: process.env.NODE_ENV === 'development',
   },
   // Ensure webpack properly resolves the @ alias
   webpack: (config) => {

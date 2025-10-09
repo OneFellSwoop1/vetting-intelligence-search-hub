@@ -1,6 +1,7 @@
 import asyncio
 import httpx
 import logging
+import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 from ..schemas import FederalLobbyingRecord
@@ -397,7 +398,8 @@ async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
                                 
                         else:
                             logger.warning(f"❌ API Error {response.status_code} for query '{query_variant}' in {search_year}")
-                            logger.debug(f"Response: {response.text[:200]}")
+                            if os.getenv("DETAILED_ERRORS", "false").lower() == "true":
+                                logger.debug(f"Response: {response.text[:200]}")
                         
                         # Rate limiting for anonymous access
                         await asyncio.sleep(4.0)  # 15 requests per minute = 4 second intervals

@@ -5,6 +5,8 @@ from typing import List, Optional, Dict, Any
 from ..schemas import SearchResult
 import logging
 from collections import defaultdict
+from ..error_handling import handle_async_errors, DataSourceError
+from ..search_utils.company_normalizer import generate_variations
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +174,7 @@ class NYCLobbyistAdapter:
         
         return structured_results
     
+    @handle_async_errors(default_return=[], reraise_on=(DataSourceError,))
     async def search(self, query: str, year: int = None) -> List[Dict[str, Any]]:
         """Search NYC Open Data for lobbying registrations and filings"""
         try:
@@ -191,28 +194,16 @@ class NYCLobbyistAdapter:
                 try:
                     lobbyist_url = f"{self.base_url}/fmf3-knd8.json"
                     
-                    # ENHANCED: Build search conditions with name variations for better matching
+                    # ENHANCED: Build search conditions with small set of name variations
                     base_query = query.strip()
+                    query_variations = generate_variations(base_query, limit=3)
                     
-                    # Create variations for common name patterns
-                    query_variations = [base_query]
-                    
-                    # Handle "St" vs "Saint" variations  
-                    if " St " in base_query:
-                        query_variations.append(base_query.replace(" St ", " Saint "))
-                        query_variations.append(base_query.replace(" St ", " St. "))
-                    elif " St." in base_query:
-                        query_variations.append(base_query.replace(" St.", " St "))
-                        query_variations.append(base_query.replace(" St.", " Saint "))
-                    elif " Saint " in base_query:
-                        query_variations.append(base_query.replace(" Saint ", " St "))
-                        query_variations.append(base_query.replace(" Saint ", " St. "))
-                    
-                    # Build focused search conditions with word boundaries to avoid partial matches
+                    # Build comprehensive search conditions including flexible substring matches
                     all_conditions = []
                     for query_var in query_variations:
-                        # Create word boundary patterns to match complete words only
+                        # Create both word boundary patterns AND substring patterns for better coverage
                         word_patterns = [
+                            # Word boundary patterns (original)
                             f"upper(client_name) like upper('% {query_var} %')",  # Word in middle
                             f"upper(client_name) like upper('{query_var} %')",   # Word at start
                             f"upper(client_name) like upper('% {query_var}')",   # Word at end
@@ -220,7 +211,11 @@ class NYCLobbyistAdapter:
                             f"upper(lobbyist_name) like upper('% {query_var} %')",  # Word in middle
                             f"upper(lobbyist_name) like upper('{query_var} %')",   # Word at start
                             f"upper(lobbyist_name) like upper('% {query_var}')",   # Word at end
-                            f"upper(lobbyist_name) = upper('{query_var}')"        # Exact match
+                            f"upper(lobbyist_name) = upper('{query_var}')",        # Exact match
+                            
+                            # Flexible substring patterns for cases like "Amazon.com Services LLC"
+                            f"upper(client_name) like upper('%{query_var}%')",    # Substring in client name
+                            f"upper(lobbyist_name) like upper('%{query_var}%')"   # Substring in lobbyist name
                         ]
                         
                         all_conditions.extend(word_patterns)

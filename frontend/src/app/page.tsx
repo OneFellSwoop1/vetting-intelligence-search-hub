@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Calendar, Building, DollarSign, ExternalLink, Eye, FileText, TrendingUp } from 'lucide-react';
+import { Search, Filter, Calendar, Building, DollarSign, ExternalLink, Eye, FileText, TrendingUp, Sparkles, Shield, Zap, Globe, BarChart3, Users, Database } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import InteractiveBarChart from '@/components/InteractiveBarChart';
 import TimelineChart from '@/components/TimelineChart';
 import NetworkDiagram from '@/components/NetworkDiagram';
@@ -101,6 +102,7 @@ export default function VettingIntelligenceHub() {
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [displayCount, setDisplayCount] = useState(15);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Group NYC Lobbyist results by year for better organization
   const groupNYCResultsByYear = React.useCallback((results: SearchResult[]) => {
@@ -152,7 +154,7 @@ export default function VettingIntelligenceHub() {
     setError('');
     
     try {
-      const response = await fetch('http://localhost:8000/api/v1/search', {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,7 +170,9 @@ export default function VettingIntelligenceHub() {
         throw new Error('Search failed');
       }
 
-      const data: SearchResponse = await response.json();
+      const responseData = await response.json();
+      // Handle both old and new response formats
+      const data = responseData.data || responseData;
       setResults(data.results || []);
       setTotalHits(data.total_hits || {});
     } catch (err) {
@@ -183,6 +187,16 @@ export default function VettingIntelligenceHub() {
     if (e.key === 'Enter') {
       searchData();
     }
+  };
+
+  const handleViewDetails = (result: SearchResult) => {
+    setSelectedResult(result);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setShowDetailModal(false);
+    setSelectedResult(null);
   };
 
   // Filtered results based on active filters
@@ -206,7 +220,7 @@ export default function VettingIntelligenceHub() {
     return groupNYCResultsByYear(filteredResults);
   }, [filteredResults, groupNYCResultsByYear]);
 
-  const ResultCard = ({ result, onClick }: { result: SearchResult; onClick: () => void }) => {
+  const ResultCard = ({ result }: { result: SearchResult }) => {
     const sourceInfo = sourceConfig[result.source as keyof typeof sourceConfig] || 
                       { name: result.source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
 
@@ -238,8 +252,7 @@ export default function VettingIntelligenceHub() {
     }
 
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
-           onClick={onClick}>
+      <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${sourceInfo.color}`}>
@@ -309,9 +322,12 @@ export default function VettingIntelligenceHub() {
                 Original
               </a>
             )}
-            <button className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center gap-1 hover:bg-blue-50 px-2 py-1 rounded">
+            <button 
+              onClick={() => handleViewDetails(result)}
+              className="text-blue-600 hover:text-blue-800 text-xs font-medium flex items-center gap-1 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+            >
               <Eye className="w-3 h-3" />
-              Full Details
+              View Details
             </button>
           </div>
         </div>
@@ -429,29 +445,51 @@ export default function VettingIntelligenceHub() {
 
     return (
       <div className="space-y-8 w-full">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6" />
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between"
+        >
+          <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
             {query ? `Comprehensive Profile: ${query}` : 'Interactive Analytics Dashboard'}
           </h2>
           {query && (
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-300 backdrop-blur-sm bg-white/10 px-4 py-2 rounded-full border border-white/20">
               Multi-jurisdictional search across {Object.keys(totalHits).length} data sources
             </div>
           )}
-        </div>
+        </motion.div>
         
         {/* Executive Summary for Company Profile */}
         {query && results.length > 0 && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-100 border border-blue-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4">Executive Summary</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-900">{results.length}</div>
-                <div className="text-sm text-blue-700">Total Records Found</div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="backdrop-blur-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-white/20 rounded-2xl p-8"
+          >
+            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-lg flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-white" />
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-700">
+              Executive Summary
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <motion.div 
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="text-center backdrop-blur-sm bg-white/10 rounded-xl p-6 border border-white/10"
+              >
+                <div className="text-4xl font-bold text-blue-400 mb-2">{results.length}</div>
+                <div className="text-sm text-gray-300">Total Records Found</div>
+              </motion.div>
+              <motion.div 
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="text-center backdrop-blur-sm bg-white/10 rounded-xl p-6 border border-white/10"
+              >
+                <div className="text-4xl font-bold text-green-400 mb-2">
                   {(() => {
                     const totalAmount = results.reduce((sum, r) => {
                       if (typeof r.amount === 'number') return sum + r.amount;
@@ -463,10 +501,13 @@ export default function VettingIntelligenceHub() {
                            `$${totalAmount.toLocaleString()}`;
                   })()}
                 </div>
-                <div className="text-sm text-blue-700">Total Financial Activity</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-700">
+                <div className="text-sm text-gray-300">Total Financial Activity</div>
+              </motion.div>
+              <motion.div 
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="text-center backdrop-blur-sm bg-white/10 rounded-xl p-6 border border-white/10"
+              >
+                <div className="text-4xl font-bold text-purple-400 mb-2">
                   {(() => {
                     const years = results.filter(r => r.date).map(r => new Date(r.date!).getFullYear());
                     const minYear = Math.min(...years);
@@ -474,49 +515,75 @@ export default function VettingIntelligenceHub() {
                     return years.length > 0 ? `${maxYear - minYear + 1}` : '0';
                   })()}
                 </div>
-                <div className="text-sm text-blue-700">Years of Activity</div>
-              </div>
+                <div className="text-sm text-gray-300">Years of Activity</div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         )}
         
         {/* Activity Categories */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+        >
           {/* Lobbying Activities */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              🏛️ Lobbying & Political Activities
+          <motion.div 
+            whileHover={{ scale: 1.02, y: -4 }}
+            className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-8 shadow-2xl"
+          >
+            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                <Globe className="w-6 h-6 text-white" />
+              </div>
+              Lobbying & Political Activities
             </h3>
-            <div className="space-y-3">
-              {['senate_lda', 'nys_ethics', 'nyc_lobbyist'].map(source => {
+            <div className="space-y-4">
+              {['senate_lda', 'nys_ethics', 'nyc_lobbyist'].map((source, index) => {
                 const count = totalHits[source] || 0;
                 const sourceInfo = sourceConfig[source as keyof typeof sourceConfig];
                 if (!sourceInfo) return null;
                 return (
-                  <div key={source} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{sourceInfo.icon}</span>
+                  <motion.div 
+                    key={source}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 + index * 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                    className="flex items-center justify-between p-4 backdrop-blur-sm bg-white/5 rounded-xl border border-white/10"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
+                        <span className="text-xl">{sourceInfo.icon}</span>
+                      </div>
                       <div>
-                        <div className="font-medium text-gray-900">{sourceInfo.name}</div>
-                        <div className="text-sm text-gray-600">
+                        <div className="font-semibold text-white">{sourceInfo.name}</div>
+                        <div className="text-sm text-gray-300">
                           {count > 0 ? `${((count / results.length) * 100).toFixed(1)}% of records` : 'No records found'}
                         </div>
                       </div>
                     </div>
-                    <span className="text-xl font-bold text-blue-600">{count}</span>
-                  </div>
+                    <div className="text-2xl font-bold text-blue-400">{count}</div>
+                  </motion.div>
                 );
               })}
             </div>
-          </div>
+          </motion.div>
 
           {/* Financial Activities */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              💰 Financial & Contract Activities
+          <motion.div 
+            whileHover={{ scale: 1.02, y: -4 }}
+            className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-8 shadow-2xl"
+          >
+            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-white" />
+              </div>
+              Financial & Contract Activities
             </h3>
-            <div className="space-y-3">
-              {['checkbook', 'dbnyc'].map(source => {
+            <div className="space-y-4">
+              {['checkbook', 'dbnyc'].map((source, index) => {
                 const count = totalHits[source] || 0;
                 const sourceInfo = sourceConfig[source as keyof typeof sourceConfig];
                 if (!sourceInfo) return null;
@@ -533,54 +600,96 @@ export default function VettingIntelligenceHub() {
                                       totalAmount > 0 ? `$${totalAmount.toLocaleString()}` : '';
                 
                 return (
-                  <div key={source} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{sourceInfo.icon}</span>
+                  <motion.div 
+                    key={source}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 + index * 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                    className="flex items-center justify-between p-4 backdrop-blur-sm bg-white/5 rounded-xl border border-white/10"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+                        <span className="text-xl">{sourceInfo.icon}</span>
+                      </div>
                       <div>
-                        <div className="font-medium text-gray-900">{sourceInfo.name}</div>
-                        <div className="text-sm text-gray-600">
+                        <div className="font-semibold text-white">{sourceInfo.name}</div>
+                        <div className="text-sm text-gray-300">
                           {count > 0 ? (
                             <>
                               {count} records
-                              {formattedAmount && <span className="text-green-600 ml-2">• {formattedAmount}</span>}
+                              {formattedAmount && <span className="text-green-400 ml-2">• {formattedAmount}</span>}
                             </>
                           ) : 'No records found'}
                         </div>
                       </div>
                     </div>
-                    <span className="text-xl font-bold text-green-600">{count}</span>
-                  </div>
+                    <div className="text-2xl font-bold text-green-400">{count}</div>
+                  </motion.div>
                 );
               })}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Interactive Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+        >
           {/* Bar Chart */}
-          <div className="w-full min-h-[500px]">
+          <motion.div 
+            whileHover={{ scale: 1.01, y: -2 }}
+            className="w-full min-h-[500px] backdrop-blur-xl bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl"
+          >
             <InteractiveBarChart data={chartData} onSelectionChange={(selection) => console.log('Chart selection:', selection)} />
-          </div>
+          </motion.div>
 
           {/* Timeline Chart */}
-          <div className="w-full min-h-[500px]">
+          <motion.div 
+            whileHover={{ scale: 1.01, y: -2 }}
+            className="w-full min-h-[500px] backdrop-blur-xl bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl"
+          >
             <TimelineChart data={timelineData} onEventClick={(event) => console.log('Timeline event:', event)} />
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Network Diagram */}
-        <div className="w-full min-h-[600px]">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          whileHover={{ scale: 1.005, y: -2 }}
+          className="w-full min-h-[600px] backdrop-blur-xl bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl"
+        >
           <NetworkDiagram nodes={networkData.nodes} edges={networkData.edges} onNodeClick={(node) => console.log('Network node:', node)} />
-        </div>
+        </motion.div>
 
         {/* Detailed Statistics */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Detailed Statistics</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">Data Sources</h4>
-              <div className="space-y-2">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0 }}
+          className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-8 shadow-2xl"
+        >
+          <h3 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+            Detailed Statistics
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10"
+            >
+              <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                <Database className="w-5 h-5 text-blue-400" />
+                Data Sources
+              </h4>
+              <div className="space-y-3">
                 {Object.entries(totalHits).map(([source, count]) => {
                   const percentage = results.length > 0 ? (count / results.length * 100).toFixed(1) : 0;
                   const sourceInfo = sourceConfig[source as keyof typeof sourceConfig] || 
@@ -588,20 +697,25 @@ export default function VettingIntelligenceHub() {
                   return (
                     <div key={source} className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded-full text-xs ${sourceInfo.color}`}>
-                          {sourceInfo.name}
-                        </span>
+                        <div className="w-3 h-3 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full"></div>
+                        <span className="text-gray-300">{sourceInfo.name}</span>
                       </span>
-                      <span className="text-gray-600">{count} ({percentage}%)</span>
+                      <span className="text-white font-medium">{count} ({percentage}%)</span>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </motion.div>
 
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">Total Amounts</h4>
-              <div className="space-y-2">
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10"
+            >
+              <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-green-400" />
+                Total Amounts
+              </h4>
+              <div className="space-y-3">
                 {(() => {
                   const amountsBySource: Record<string, number> = {};
                   results.forEach(result => {
@@ -621,10 +735,11 @@ export default function VettingIntelligenceHub() {
                                        { name: source, color: 'bg-gray-100 text-gray-800', icon: '📄' };
                       return (
                         <div key={source} className="flex items-center justify-between text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs ${sourceInfo.color}`}>
-                            {sourceInfo.name}
+                          <span className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full"></div>
+                            <span className="text-gray-300">{sourceInfo.name}</span>
                           </span>
-                          <span className="font-medium text-gray-900">
+                          <span className="font-semibold text-green-400">
                             ${amount.toLocaleString()}
                           </span>
                         </div>
@@ -632,26 +747,32 @@ export default function VettingIntelligenceHub() {
                     });
                 })()}
               </div>
-            </div>
+            </motion.div>
 
-            <div>
-              <h4 className="font-medium text-gray-900 mb-2">Key Metrics</h4>
-              <div className="space-y-2 text-sm">
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10"
+            >
+              <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-purple-400" />
+                Key Metrics
+              </h4>
+              <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Total Records:</span>
-                  <span className="font-medium">{results.length}</span>
+                  <span className="text-gray-300">Total Records:</span>
+                  <span className="font-semibold text-white">{results.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Unique Vendors:</span>
-                  <span className="font-medium">{entities.size}</span>
+                  <span className="text-gray-300">Unique Vendors:</span>
+                  <span className="font-semibold text-white">{entities.size}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Unique Agencies:</span>
-                  <span className="font-medium">{agencies.size}</span>
+                  <span className="text-gray-300">Unique Agencies:</span>
+                  <span className="font-semibold text-white">{agencies.size}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Date Range:</span>
-                  <span className="font-medium">
+                  <span className="text-gray-300">Date Range:</span>
+                  <span className="font-semibold text-white">
                     {timelineData.length > 0 
                       ? `${new Date(timelineData[0].date).getFullYear()} - ${new Date(timelineData[timelineData.length - 1].date).getFullYear()}`
                       : 'N/A'
@@ -659,9 +780,9 @@ export default function VettingIntelligenceHub() {
                   </span>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   };
@@ -693,160 +814,363 @@ export default function VettingIntelligenceHub() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        {/* Header - Government Style */}
-        <div className="bg-white border border-gray-300 rounded-lg p-6 mb-8 shadow-sm">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Search className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Vetting Intelligence Search Hub
-              </h1>
-            </div>
-            <p className="text-lg text-gray-600 max-w-4xl mx-auto mb-4">
-              Comprehensive search across government transparency data sources including lobbying records, 
-              campaign finance, federal spending, and public contracts
-            </p>
-            <div className="flex flex-wrap justify-center gap-2 text-sm text-gray-500">
-              <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full">Federal Lobbying (LDA)</span>
-              <span className="px-3 py-1 bg-green-50 text-green-700 rounded-full">NYC Contracts</span>
-              <span className="px-3 py-1 bg-purple-50 text-purple-700 rounded-full">Campaign Finance</span>
-              <span className="px-3 py-1 bg-orange-50 text-orange-700 rounded-full">NY State Ethics</span>
-              <span className="px-3 py-1 bg-cyan-50 text-cyan-700 rounded-full">NYC Lobbying</span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -inset-10 opacity-50">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
+          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-2000"></div>
+          <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-4000"></div>
+        </div>
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Modern Hero Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center mb-16"
+        >
+          <div className="relative">
+            {/* Floating Icons */}
+            <motion.div
+              animate={{ 
+                y: [0, -10, 0],
+                rotate: [0, 5, 0]
+              }}
+              transition={{ 
+                duration: 4,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute -top-8 -left-8 w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-2xl"
+            >
+              <Shield className="w-8 h-8 text-white" />
+            </motion.div>
+            
+            <motion.div
+              animate={{ 
+                y: [0, 10, 0],
+                rotate: [0, -5, 0]
+              }}
+              transition={{ 
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 1
+              }}
+              className="absolute -top-4 -right-4 w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-2xl"
+            >
+              <Sparkles className="w-6 h-6 text-white" />
+            </motion.div>
+
+            <motion.div
+              animate={{ 
+                y: [0, -8, 0],
+                x: [0, 5, 0]
+              }}
+              transition={{ 
+                duration: 5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 2
+              }}
+              className="absolute top-16 -left-12 w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center shadow-2xl"
+            >
+              <Zap className="w-5 h-5 text-white" />
+            </motion.div>
+
+            {/* Main Hero Content */}
+            <div className="relative backdrop-blur-sm bg-white/10 rounded-3xl p-12 border border-white/20 shadow-2xl">
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="flex items-center justify-center gap-4 mb-8"
+              >
+                <div className="relative">
+                  <div className="w-20 h-20 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-2xl flex items-center justify-center shadow-2xl">
+                    <Search className="w-10 h-10 text-white" />
+                  </div>
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-30"></div>
+                </div>
+                <div>
+                  <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent leading-tight">
+                    Vetting Intelligence
+                  </h1>
+                  <h2 className="text-3xl md:text-4xl font-semibold text-blue-200 mt-2">
+                    Search Hub
+                  </h2>
+                </div>
+              </motion.div>
+
+              <motion.p 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="text-xl text-gray-200 max-w-4xl mx-auto mb-8 leading-relaxed"
+              >
+                Uncover hidden connections and insights across government transparency data. 
+                Search lobbying records, campaign finance, federal spending, and public contracts 
+                with AI-powered intelligence.
+              </motion.p>
+
+              {/* Feature Pills */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.6 }}
+                className="flex flex-wrap justify-center gap-3 mb-8"
+              >
+                {[
+                  { icon: Globe, label: "Federal Lobbying (LDA)", color: "from-blue-500 to-blue-600" },
+                  { icon: Building, label: "NYC Contracts", color: "from-green-500 to-green-600" },
+                  { icon: DollarSign, label: "Campaign Finance", color: "from-purple-500 to-purple-600" },
+                  { icon: Shield, label: "NY State Ethics", color: "from-orange-500 to-orange-600" },
+                  { icon: Users, label: "NYC Lobbying", color: "from-cyan-500 to-cyan-600" }
+                ].map((item, index) => (
+                  <motion.div
+                    key={item.label}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4, delay: 0.8 + index * 0.1 }}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    className={`px-4 py-2 bg-gradient-to-r ${item.color} rounded-full text-white text-sm font-medium shadow-lg backdrop-blur-sm border border-white/20 flex items-center gap-2`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.label}
+                  </motion.div>
+                ))}
+              </motion.div>
+
+              {/* Stats */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 1.0 }}
+                className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-2xl mx-auto"
+              >
+                {[
+                  { icon: Database, value: "5M+", label: "Records Indexed" },
+                  { icon: BarChart3, value: "50+", label: "Data Sources" },
+                  { icon: Zap, value: "<1s", label: "Search Speed" }
+                ].map((stat, index) => (
+                  <motion.div
+                    key={stat.label}
+                    whileHover={{ scale: 1.05 }}
+                    className="text-center p-4 backdrop-blur-sm bg-white/5 rounded-xl border border-white/10"
+                  >
+                    <stat.icon className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-white">{stat.value}</div>
+                    <div className="text-sm text-gray-300">{stat.label}</div>
+                  </motion.div>
+                ))}
+              </motion.div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Search Bar - Government Style */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-300 p-6 mb-8">
+        {/* Modern Search Bar */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="backdrop-blur-xl bg-white/10 rounded-2xl border border-white/20 p-8 mb-8 shadow-2xl"
+        >
           <div className="flex gap-4 mb-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <div className="flex-1 relative group">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-300 w-6 h-6 group-focus-within:text-blue-400 transition-colors" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Search for companies, individuals, or organizations..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-lg text-white placeholder-gray-300 transition-all duration-300"
               />
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"></div>
             </div>
-            <button
+            
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
               onClick={searchData}
               disabled={loading || !query.trim()}
-              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg transition-all duration-300 flex items-center gap-2"
             >
-              {loading ? 'Searching...' : 'Search'}
-            </button>
-            <button
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="w-5 h-5" />
+                  Search
+                </>
+              )}
+            </motion.button>
+            
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setShowFilters(!showFilters)}
-              className="px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
+              className={`px-6 py-4 backdrop-blur-sm rounded-xl flex items-center gap-2 font-medium transition-all duration-300 ${
+                showFilters 
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30' 
+                  : 'bg-white/10 text-gray-300 border border-white/20 hover:bg-white/20'
+              }`}
             >
               <Filter className="w-5 h-5" />
               Filters
-            </button>
+            </motion.button>
           </div>
 
-          {/* Filters */}
-          {showFilters && (
-            <div className="border-t border-gray-200 pt-4 mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                  <select
-                    value={filters.year || ''}
-                    onChange={(e) => setFilters({...filters, year: e.target.value || undefined})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">All Years</option>
-                    {[2024, 2023, 2022, 2021, 2020].map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
+          {/* Modern Filters */}
+          <AnimatePresence>
+            {showFilters && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="border-t border-white/20 pt-6 mt-6"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-200 mb-2">Year</label>
+                    <select
+                      value={filters.year || ''}
+                      onChange={(e) => setFilters({...filters, year: e.target.value || undefined})}
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    >
+                      <option value="" className="bg-gray-800">All Years</option>
+                      {[2024, 2023, 2022, 2021, 2020].map(year => (
+                        <option key={year} value={year} className="bg-gray-800">{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-200 mb-2">Source</label>
+                    <select
+                      value={filters.source || ''}
+                      onChange={(e) => setFilters({...filters, source: e.target.value || undefined})}
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    >
+                      <option value="" className="bg-gray-800">All Sources</option>
+                      {Object.entries(sourceConfig).map(([key, config]) => (
+                        <option key={key} value={key} className="bg-gray-800">{config.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-200 mb-2">Record Type</label>
+                    <select
+                      value={filters.recordType || ''}
+                      onChange={(e) => setFilters({...filters, recordType: e.target.value || undefined})}
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    >
+                      <option value="" className="bg-gray-800">All Types</option>
+                      <option value="lobbying" className="bg-gray-800">Lobbying</option>
+                      <option value="campaign_finance" className="bg-gray-800">Campaign Finance</option>
+                      <option value="federal_spending" className="bg-gray-800">Federal Spending</option>
+                      <option value="contracts" className="bg-gray-800">Contracts</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-200 mb-2">Min Amount ($)</label>
+                    <input
+                      type="number"
+                      value={filters.minAmount || ''}
+                      onChange={(e) => setFilters({...filters, minAmount: e.target.value || undefined})}
+                      placeholder="0"
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
-                  <select
-                    value={filters.source || ''}
-                    onChange={(e) => setFilters({...filters, source: e.target.value || undefined})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">All Sources</option>
-                    {Object.entries(sourceConfig).map(([key, config]) => (
-                      <option key={key} value={key}>{config.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Record Type</label>
-                  <select
-                    value={filters.recordType || ''}
-                    onChange={(e) => setFilters({...filters, recordType: e.target.value || undefined})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">All Types</option>
-                    <option value="lobbying">Lobbying</option>
-                    <option value="campaign_finance">Campaign Finance</option>
-                    <option value="federal_spending">Federal Spending</option>
-                    <option value="contracts">Contracts</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Amount ($)</label>
-                  <input
-                    type="number"
-                    value={filters.minAmount || ''}
-                    onChange={(e) => setFilters({...filters, minAmount: e.target.value || undefined})}
-                    placeholder="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
 
-        {/* Navigation Tabs */}
+        {/* Modern Navigation Tabs */}
         {results.length > 0 && (
-          <div className="flex gap-4 mb-6">
-            <button
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="flex gap-4 mb-8"
+          >
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setCurrentView('search')}
-              className={`px-4 py-2 rounded-lg font-medium ${currentView === 'search' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-300'}`}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+                currentView === 'search' 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                  : 'backdrop-blur-sm bg-white/10 text-gray-300 border border-white/20 hover:bg-white/20'
+              }`}
             >
-              <FileText className="w-4 h-4 inline mr-2" />
+              <FileText className="w-5 h-5" />
               Results ({displayResults.length})
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setCurrentView('analytics')}
-              className={`px-4 py-2 rounded-lg font-medium ${currentView === 'analytics' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-300'}`}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+                currentView === 'analytics' 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                  : 'backdrop-blur-sm bg-white/10 text-gray-300 border border-white/20 hover:bg-white/20'
+              }`}
             >
-              <TrendingUp className="w-4 h-4 inline mr-2" />
+              <TrendingUp className="w-5 h-5" />
               Analytics
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
         )}
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800">{error}</p>
-          </div>
-        )}
+        {/* Modern Error Message */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              className="backdrop-blur-sm bg-red-500/10 border border-red-400/30 rounded-xl p-4 mb-6"
+            >
+              <p className="text-red-200 flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+                  <span className="text-white text-xs">!</span>
+                </div>
+                {error}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Main Content */}
         {currentView === 'analytics' && results.length > 0 ? (
-          <div className="w-full overflow-x-auto">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="w-full overflow-x-auto"
+          >
             <AnalyticsView />
-          </div>
+          </motion.div>
         ) : (
-          <div className="space-y-6">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="space-y-6"
+          >
             {/* CheckbookNYC-Style Results for Contract Data */}
             {displayResults.some(r => r.source === 'checkbook') && (
               <CheckbookNYCStyleResults 
-                results={displayResults.map(result => ({
+                results={displayResults.filter(r => r.source === 'checkbook').map(result => ({
                   id: `${result.source}-${Math.random()}`,
                   source: result.source,
                   title: result.title,
@@ -855,17 +1179,20 @@ export default function VettingIntelligenceHub() {
                   amount: typeof result.amount === 'string' 
                     ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
                     : result.amount,
-                  description: result.description,
+                  description: result.description || '',
                   date: result.date,
-                  year: result.year ? parseInt(result.year) : undefined,
+                  year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
                   url: result.url,
                   raw_records: [],
                   client_count: result.client_count,
                   registration_count: result.registration_count,
-                  record_type: result.record_type
+                  record_type: result.record_type,
+                  entity_name: result.vendor,
+                  document_id: result.record_type
                 }))}
                 searchQuery={query}
                 isLoading={loading}
+                onViewDetails={(result) => handleViewDetails(result as any)}
               />
             )}
             
@@ -881,9 +1208,9 @@ export default function VettingIntelligenceHub() {
                   amount: typeof result.amount === 'string' 
                     ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
                     : result.amount,
-                  description: result.description,
+                  description: result.description || '',
                   date: result.date,
-                  year: result.year ? parseInt(result.year) : undefined,
+                  year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
                   url: result.url,
                   raw_records: [],
                   client_count: result.client_count,
@@ -891,43 +1218,120 @@ export default function VettingIntelligenceHub() {
                   record_type: result.record_type
                 }))}
                 isLoading={loading}
+                onViewDetails={(result) => handleViewDetails(result as any)}
               />
             )}
 
-            {/* No Results */}
+            {/* No Results - Filtered */}
             {!loading && query && displayResults.length === 0 && results.length > 0 && (
-              <div className="text-center py-12">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No results match your filters</h3>
-                <p className="text-gray-600">Try adjusting your search criteria</p>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-16"
+              >
+                <div className="backdrop-blur-sm bg-white/10 rounded-2xl border border-white/20 p-12 max-w-lg mx-auto">
+                  <div className="w-16 h-16 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Filter className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-3">No results match your filters</h3>
+                  <p className="text-gray-300 mb-6">Try adjusting your search criteria or removing some filters</p>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setFilters({})}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold"
+                  >
+                    Clear All Filters
+                  </motion.button>
+                </div>
+              </motion.div>
             )}
 
             {/* No Results for Query */}
             {!loading && query && results.length === 0 && (
-              <div className="text-center py-12">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No results found</h3>
-                <p className="text-gray-600">Try a different search term</p>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-16"
+              >
+                <div className="backdrop-blur-sm bg-white/10 rounded-2xl border border-white/20 p-12 max-w-lg mx-auto">
+                  <div className="w-16 h-16 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Search className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-3">No results found</h3>
+                  <p className="text-gray-300">Try a different search term or check your spelling</p>
+                </div>
+              </motion.div>
             )}
 
-            {/* Initial State */}
+            {/* Initial State - How to Use */}
             {!query && results.length === 0 && (
-              <div className="text-center py-12">
-                <div className="bg-white rounded-lg border border-gray-200 p-8 max-w-2xl mx-auto">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">How to Use</h3>
-                  <ul className="text-left text-gray-600 space-y-2">
-                    <li>• Search for companies, individuals, or organizations</li>
-                    <li>• View lobbying records from Senate and House LDA</li>
-                    <li>• Check contract and payment data</li>
-                    <li>• Review federal spending and NYC contracts</li>
-                    <li>• Use filters to narrow down results</li>
-                    <li>• Click on results for detailed information</li>
-                  </ul>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-16"
+              >
+                <div className="backdrop-blur-sm bg-white/10 rounded-2xl border border-white/20 p-12 max-w-4xl mx-auto">
+                  <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-8">
+                    <Sparkles className="w-10 h-10 text-white" />
+                  </div>
+                  <h3 className="text-3xl font-bold text-white mb-6">Ready to Uncover Insights?</h3>
+                  <p className="text-xl text-gray-300 mb-8">Search across millions of government transparency records</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+                    {[
+                      { icon: Globe, title: "Federal Lobbying", desc: "Senate and House LDA records" },
+                      { icon: Building, title: "NYC Contracts", desc: "Public contract and payment data" },
+                      { icon: DollarSign, title: "Campaign Finance", desc: "Political contribution records" },
+                      { icon: Shield, title: "NY State Ethics", desc: "State procurement and ethics data" },
+                      { icon: Users, title: "NYC Lobbying", desc: "Local lobbying registrations" },
+                      { icon: BarChart3, title: "Analytics", desc: "Interactive charts and insights" }
+                    ].map((feature, index) => (
+                      <motion.div
+                        key={feature.title}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 * index }}
+                        className="backdrop-blur-sm bg-white/5 rounded-xl p-6 border border-white/10"
+                      >
+                        <feature.icon className="w-8 h-8 text-blue-400 mb-3" />
+                        <h4 className="text-lg font-semibold text-white mb-2">{feature.title}</h4>
+                        <p className="text-gray-300 text-sm">{feature.desc}</p>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         )}
+
+        {/* Detail Modal */}
+        <AnimatePresence>
+          {showDetailModal && selectedResult && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={handleCloseDetailModal}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ duration: 0.2 }}
+                className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DetailedResultView 
+                  result={selectedResult} 
+                  onClose={handleCloseDetailModal}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
