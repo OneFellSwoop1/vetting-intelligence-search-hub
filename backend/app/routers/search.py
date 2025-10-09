@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import asyncio
 import logging
+import time
+from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import all adapters - import the classes directly
 from ..adapters.checkbook import CheckbookNYCAdapter
@@ -15,10 +18,12 @@ from ..services.checkbook import CheckbookNYCService
 
 from ..schemas import SearchResult
 from ..cache import CacheService
-from ..user_management import UserProfile, check_user_rate_limit
+from ..user_management import UserProfile, check_user_rate_limit_db, get_user_ip
 from ..input_validation import ValidatedSearchRequest, create_validation_error_response
 from ..error_handling import handle_async_errors, standardize_api_error, ValidationError
 from ..response_standards import create_search_response, create_error_response
+from ..database import get_async_db
+from ..services.database_service import DatabaseService
 from fastapi import Query
 
 router = APIRouter(prefix="/api/v1")
@@ -100,18 +105,44 @@ def analyze_results(results: list) -> Dict[str, Any]:
 @handle_async_errors(default_return={"error": "Search service temporarily unavailable"})
 async def search(
     request: SearchRequest,
-    user: UserProfile = Depends(check_user_rate_limit)
+    http_request: Request,
+    user: UserProfile = Depends(check_user_rate_limit_db),
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
-    Search all data sources in parallel and return harmonized results.
-    Uses Redis caching for 24-hour result persistence.
+    Search all data sources in parallel with database persistence.
+    Uses Redis caching for 24-hour result persistence and saves search history.
     """
+    start_time = time.time()
+    
+    # Create database service
+    db_service = DatabaseService(db)
+    
+    # Create search query record
+    query_record = await db_service.create_search_query(
+        request,
+        user_ip=get_user_ip(http_request),
+        user_agent=http_request.headers.get("User-Agent")
+    )
+    
     logger.info(f"Starting search for query: '{request.query}', year: {request.year}, jurisdiction: {request.jurisdiction}")
     
     # Check cache first
     cached_results = cache_service.get_cached_results(request.query, request.year, request.jurisdiction)
     if cached_results:
         logger.info(f"Returning cached results for query: '{request.query}'")
+        
+        # Update query record with cached results metadata
+        execution_time = int((time.time() - start_time) * 1000)
+        try:
+            await db_service.update_search_query_results(
+                query_record.id,
+                {"total_results": len(cached_results['results']), "total_hits": cached_results['total_hits']},
+                execution_time
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to update cached search metadata: {e}")
+        
         return create_search_response(
             results=cached_results['results'],
             total_hits=cached_results['total_hits'],
@@ -221,7 +252,28 @@ async def search(
     results.sort(key=sort_key)
     
     total_results = len(results)
-    logger.info(f"Search completed. Total results: {total_results}, Per source: {total_hits}")
+    execution_time = int((time.time() - start_time) * 1000)
+    logger.info(f"Search completed. Total results: {total_results}, Per source: {total_hits}, Execution time: {execution_time}ms")
+    
+    # Save results to database
+    try:
+        await db_service.create_search_results(query_record.id, results)
+        await db_service.update_search_query_results(
+            query_record.id,
+            {"total_results": total_results, "total_hits": total_hits},
+            execution_time
+        )
+        
+        # Update data source status
+        for source, count in total_hits.items():
+            await db_service.update_data_source_status(
+                source_name=source,
+                is_available=True,
+                response_time_ms=execution_time // len(total_hits) if total_hits else execution_time
+            )
+    except Exception as e:
+        logger.error(f"❌ Failed to save search results to database: {e}")
+        # Continue anyway - don't fail the search because of database issues
     
     # Cache the results
     cache_service.cache_results(request.query, total_hits, results, request.year, request.jurisdiction)
@@ -251,6 +303,86 @@ async def get_analytics(query: str, year: Optional[str] = None, jurisdiction: Op
         analytics=analytics_data,
         message=f"Analytics for '{query}'"
     )
+
+
+@router.get("/history")
+async def get_search_history(
+    request: Request,
+    limit: int = Query(default=50, le=200, description="Maximum number of history items"),
+    user: UserProfile = Depends(check_user_rate_limit_db),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Get search history from database.
+    
+    Returns recent search queries with metadata including:
+    - Query text and parameters
+    - Execution time and result counts
+    - Timestamp information
+    """
+    try:
+        db_service = DatabaseService(db)
+        
+        # Get user IP for filtering (optional privacy feature)
+        user_ip = get_user_ip(request) if user.user_id == "guest" else None
+        
+        history = await db_service.get_search_history(
+            limit=limit,
+            user_ip=user_ip
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Retrieved {len(history)} search history items",
+            "data": {
+                "history": history,
+                "total_items": len(history)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get search history: {e}")
+        return create_error_response(
+            message="Failed to retrieve search history",
+            error_code="DATABASE_ERROR"
+        )
+
+
+@router.get("/data-sources/status")
+async def get_data_source_status(
+    user: UserProfile = Depends(check_user_rate_limit_db),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Get current status and performance metrics for all data sources.
+    
+    Returns:
+    - Availability status
+    - Response time metrics
+    - Error rates and success rates
+    - Last update timestamps
+    """
+    try:
+        db_service = DatabaseService(db)
+        status_list = await db_service.get_data_source_status()
+        
+        return {
+            "status": "success",
+            "message": "Data source status retrieved",
+            "data": {
+                "sources": status_list,
+                "total_sources": len(status_list),
+                "available_sources": sum(1 for s in status_list if s['is_available']),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get data source status: {e}")
+        return create_error_response(
+            message="Failed to retrieve data source status",
+            error_code="DATABASE_ERROR"
+        )
 
 @router.get("/cache/stats")
 async def get_cache_stats():
