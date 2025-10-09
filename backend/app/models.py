@@ -10,6 +10,36 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
+class User(Base):
+    """Model for user accounts with enhanced security."""
+    
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(32), unique=True, index=True, nullable=False)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    
+    # User metadata
+    role = Column(String(50), default="registered", index=True)
+    rate_limit_tier = Column(String(50), default="registered", index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    
+    # User preferences and settings
+    preferences = Column(JSON, default={})
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    
+    # Indexes for performance
+    __table_args__ = (
+        Index("ix_users_email_active", "email", "is_active"),
+        Index("ix_users_role_tier", "role", "rate_limit_tier"),
+    )
+
+
 class SearchQuery(Base):
     """Model for storing search queries and metadata."""
     
