@@ -9,6 +9,7 @@ from .routers import search, correlation, auth
 from .websocket import websocket_endpoint
 from .resource_management import cleanup_manager
 from .middleware.rate_limit import IPRateLimitMiddleware
+from .config import settings
 
 # Enhanced environment variable loading with validation
 def load_environment_variables():
@@ -69,21 +70,19 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS
-cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://localhost:8000,http://127.0.0.1:8000').split(',')
+# Configure CORS using centralized settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# Add IP-based rate limiting middleware
-ip_rate_limit = int(os.getenv("IP_RATE_LIMIT_PER_MINUTE", "60"))
+# Add IP-based rate limiting middleware using centralized settings
 app.add_middleware(
     IPRateLimitMiddleware,
-    requests_per_minute=ip_rate_limit
+    requests_per_minute=settings.IP_RATE_LIMIT_PER_MINUTE
 )
 
 # Include routers
