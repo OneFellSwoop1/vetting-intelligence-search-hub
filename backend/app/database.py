@@ -14,9 +14,15 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 
 logger = logging.getLogger(__name__)
 
-# Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/vetting_intelligence")
-ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+# Database URL from environment - handle missing PostgreSQL gracefully
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    # Use SQLite as fallback for development
+    DATABASE_URL = "sqlite:///./vetting_intelligence.db"
+    ASYNC_DATABASE_URL = "sqlite+aiosqlite:///./vetting_intelligence.db"
+    logger.warning("No DATABASE_URL found, using SQLite fallback")
+else:
+    ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
 # Create SQLAlchemy engine with connection pooling
 engine = create_engine(
@@ -134,13 +140,14 @@ class DatabaseManager:
             self.engine.dispose()
             logger.info("✅ Database connections closed")
         except Exception as e:
-            logger.error(f"❌ Error closing database: {e}")
+            logger.error(f"❌ Error closing database connections: {e}")
+            raise
 
 # Global database manager instance
 db_manager = DatabaseManager()
 
 # Dependency injection for FastAPI
-def get_db() -> Session:
+def get_db():
     """FastAPI dependency for synchronous database sessions."""
     db = db_manager.get_sync_session()
     try:

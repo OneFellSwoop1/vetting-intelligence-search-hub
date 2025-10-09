@@ -19,13 +19,26 @@ from .cache import cache_service
 
 logger = logging.getLogger(__name__)
 
-# JWT Configuration
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
+# JWT Configuration - Enhanced security
+def _generate_secure_secret():
+    """Generate a cryptographically secure secret key"""
+    return secrets.token_urlsafe(64)  # Increased from 32 to 64 bytes
+
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or _generate_secure_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Validate JWT secret key strength
+if len(JWT_SECRET_KEY) < 32:
+    logger.warning("JWT_SECRET_KEY is too short. Using generated secure key.")
+    JWT_SECRET_KEY = _generate_secure_secret()
+
+# Password hashing - Enhanced security configuration
+pwd_context = CryptContext(
+    schemes=["bcrypt"], 
+    deprecated="auto",
+    bcrypt__rounds=12  # Increased from default 10 for better security
+)
 
 # HTTP Bearer token authentication
 security = HTTPBearer()

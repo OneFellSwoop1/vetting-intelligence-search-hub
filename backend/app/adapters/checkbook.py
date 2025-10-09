@@ -4,10 +4,14 @@ Updated to use CheckbookNYC's dedicated API endpoints instead of raw Socrata dat
 """
 import httpx
 import logging
+import os
 import urllib.parse
 from typing import List, Dict, Any, Optional
 from ..cache import cache_service
 from ..schemas import SearchResult
+from ..resource_management import managed_http_client
+from ..search_utils.company_normalizer import generate_variations, similarity
+from ..error_handling import handle_async_errors, DataSourceError
 
 logger = logging.getLogger(__name__)
 
@@ -28,18 +32,27 @@ class CheckbookNYCAdapter:
         # Compatibility attributes for search router health checks
         self.base_url = self.socrata_base_url
         self.cache_ttl = 3600  # 1 hour cache
-        self.app_token = None  # We'll use the CheckbookNYC API directly
-        self.api_key_id = None
-        self.api_key_secret = None
+        self.app_token = os.getenv("SOCRATA_APP_TOKEN")
+        self.api_key_id = os.getenv("SOCRATA_API_KEY_ID")
+        self.api_key_secret = os.getenv("SOCRATA_API_KEY_SECRET")
         self.MAIN_CHECKBOOK_DATASETS = [
             "qyyg-4tf5",  # NYC Checkbook contracts (for compatibility)
         ]
+        
+        # HTTP client configuration with proper timeouts
+        self.timeout_config = httpx.Timeout(
+            connect=10.0,  # Connection timeout
+            read=30.0,     # Read timeout
+            write=10.0,    # Write timeout
+            pool=5.0       # Pool timeout
+        )
         
         # Initialize cache
         self.cache = cache_service
         if self.cache.enabled:
             logger.info("Redis caching enabled for Checkbook NYC adapter")
 
+    @handle_async_errors(default_return=[], reraise_on=(DataSourceError,))
     async def search(self, query: str, limit: int = 50, year: int = None) -> List[SearchResult]:
         """
         Search NYC Checkbook using the official API endpoints.
@@ -55,38 +68,53 @@ class CheckbookNYCAdapter:
         logger.info(f"Starting CheckbookNYC search for: '{query}' (year: {year})")
         
         all_results = []
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
+
+        async with managed_http_client("checkbook") as client:
             # Ensure limit is set to a default value if None
             search_limit = limit or 50
+
+            # UPDATED: Since CheckbookNYC API is blocked by anti-bot services,
+            # prioritize Socrata API which is working reliably
+            variations = generate_variations(query, limit=4)
             
-            # Search contracts using prime_vendor parameter
-            contracts = await self._search_contracts(client, query, search_limit//2, year)
-            all_results.extend(contracts)
-            
-            # Search spending using vendor parameter  
-            spending = await self._search_spending(client, query, search_limit//2, year)
-            all_results.extend(spending)
-            
-            # If we have few results, try fallback Socrata search
-            if len(all_results) < 5:
-                logger.info(f"🔄 Low results ({len(all_results)}), trying Socrata fallback")
-                socrata_results = await self._search_socrata_fallback(client, query, limit)
+            # Try Socrata first (most reliable)
+            logger.info(f"🔍 Using Socrata API as primary source (CheckbookNYC API blocked)")
+            for q in variations:
+                per_var_limit = max(10, search_limit // max(1, len(variations)))
+                socrata_results = await self._search_socrata_enhanced(client, q, per_var_limit, year)
                 all_results.extend(socrata_results)
+                if len(all_results) >= search_limit:
+                    break
+            
+            # Still try CheckbookNYC API as backup (in case it becomes available)
+            if len(all_results) < search_limit // 2:
+                logger.info(f"🔄 Supplementing with CheckbookNYC API attempts")
+                for q in variations[:2]:  # Limit attempts since API is likely blocked
+                    per_var_limit = max(5, (search_limit - len(all_results)) // 2)
+                    contracts = await self._search_contracts(client, q, per_var_limit // 2, year)
+                    spending = await self._search_spending(client, q, per_var_limit // 2, year)
+                    all_results.extend(contracts)
+                    all_results.extend(spending)
+                    if len(all_results) >= search_limit:
+                        break
         
         # Remove duplicates and sort by amount
         unique_results = self._deduplicate_results(all_results)
         sorted_results = sorted(unique_results, key=lambda x: x.get('amount', 0), reverse=True)
+
+        # Prefer results that closely match the original query
+        filtered: List[Dict[str, Any]] = []
+        for r in sorted_results:
+            vendor_name = r.get('vendor') or ''
+            # Keep strong matches or keep at least some results for context
+            if similarity(query, vendor_name) >= 0.6 or len(filtered) < 10:
+                filtered.append(r)
+        sorted_results = filtered
         
         logger.info(f"✅ CheckbookNYC search completed: {len(sorted_results)} results")
         
-        # Convert to SearchResult objects
-        search_results = []
-        for result in sorted_results[:limit]:
-            search_result = self._convert_to_search_result(result)
-            search_results.append(search_result)
-        
-        return search_results
+        # Return dictionaries directly (like other adapters) instead of SearchResult objects
+        return sorted_results[:limit]
 
     async def _search_contracts(self, client: httpx.AsyncClient, query: str, limit: int, year: int = None) -> List[Dict[str, Any]]:
         """Search contracts using the CheckbookNYC contracts API."""
@@ -163,51 +191,90 @@ class CheckbookNYCAdapter:
             logger.error(f"❌ Spending search failed: {e}")
             return []
 
-    async def _search_socrata_fallback(self, client: httpx.AsyncClient, query: str, limit: int) -> List[Dict[str, Any]]:
-        """Fallback to Socrata full-text search for broader coverage."""
+    async def _search_socrata_enhanced(self, client: httpx.AsyncClient, query: str, limit: int, year: int = None) -> List[Dict[str, Any]]:
+        """Enhanced Socrata search using multiple search strategies."""
         try:
-            # Use the main NYC contract dataset for full-text search
+            # Use the main NYC contract dataset 
             socrata_url = f"{self.socrata_base_url}/resource/qyyg-4tf5.json"
+            all_results = []
             
+            # Strategy 1: Full-text search (most comprehensive)
             params = {
                 '$q': query.strip(),  # Full-text search
-                '$limit': limit,
+                '$limit': limit // 2,
                 '$order': 'contract_amount DESC'
             }
             
-            logger.info(f"🔄 Socrata fallback search with $q: '{query}'")
+            if year:
+                # Add fiscal year filter for full-text search
+                params['$where'] = f"fiscal_year = '{year}'"
+            
+            logger.info(f"🔍 Socrata full-text search: '{query}'")
             response = await client.get(socrata_url, params=params)
             
-            if response.status_code != 200:
-                logger.warning(f"Socrata fallback returned {response.status_code}")
-                return []
-                
-            data = response.json()
-            logger.info(f"✅ Socrata fallback returned {len(data)} records")
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"✅ Full-text search returned {len(data)} records")
+                for item in data:
+                    normalized = self._normalize_socrata_record(item)
+                    if normalized:
+                        all_results.append(normalized)
             
-            # Normalize Socrata records
-            results = []
-            for item in data:
-                normalized = self._normalize_socrata_record(item)
-                if normalized:
-                    results.append(normalized)
-                    
-            return results
+            # Strategy 2: Targeted vendor/title search for better precision
+            if len(all_results) < limit:
+                where_conditions = [
+                    f"upper(vendor_name) like upper('%{query.strip()}%')",
+                    f"upper(short_title) like upper('%{query.strip()}%')"
+                ]
+                
+                if year:
+                    where_conditions.append(f"fiscal_year = '{year}'")
+                
+                where_clause = " OR ".join(where_conditions[:2])
+                if year:
+                    where_clause = f"({where_clause}) AND fiscal_year = '{year}'"
+                
+                params = {
+                    '$where': where_clause,
+                    '$limit': limit - len(all_results),
+                    '$order': 'contract_amount DESC'
+                }
+                
+                logger.info(f"🔍 Socrata targeted search: vendor/title contains '{query}'")
+                response = await client.get(socrata_url, params=params)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info(f"✅ Targeted search returned {len(data)} records")
+                    for item in data:
+                        normalized = self._normalize_socrata_record(item)
+                        if normalized:
+                            # Avoid duplicates
+                            if not any(r.get('id') == normalized.get('id') for r in all_results):
+                                all_results.append(normalized)
+            
+            return all_results
             
         except Exception as e:
-            logger.error(f"❌ Socrata fallback failed: {e}")
+            logger.error(f"❌ Enhanced Socrata search failed: {e}")
             return []
+
+    async def _search_socrata_fallback(self, client: httpx.AsyncClient, query: str, limit: int) -> List[Dict[str, Any]]:
+        """Legacy fallback method - now redirects to enhanced version."""
+        return await self._search_socrata_enhanced(client, query, limit)
 
     def _normalize_contract_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Normalize a contract record from CheckbookNYC API."""
         try:
+            amount = self._parse_amount(record.get('contract_amount'))
             return {
                 'id': f"checkbook_contract_{record.get('contract_id', 'unknown')}",
                 'source': 'checkbook',
                 'type': 'contract',
                 'vendor': record.get('prime_vendor', 'Unknown Vendor'),
                 'agency': record.get('agency_name', 'Unknown Agency'),
-                'amount': self._parse_amount(record.get('contract_amount')),
+                'amount': amount,
+                'amount_str': f"${amount:,.2f}" if amount > 0 else "$0",
                 'title': f"NYC Contract: {record.get('purpose', record.get('contract_title', 'Unknown Purpose'))}",
                 'date': record.get('start_date', record.get('contract_date')),
                 'fiscal_year': record.get('fiscal_year'),
@@ -222,13 +289,15 @@ class CheckbookNYCAdapter:
     def _normalize_spending_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Normalize a spending record from CheckbookNYC API."""
         try:
+            amount = self._parse_amount(record.get('amount', record.get('spending_amount')))
             return {
                 'id': f"checkbook_spending_{record.get('spending_id', 'unknown')}",
                 'source': 'checkbook',
                 'type': 'spending',
                 'vendor': record.get('vendor', record.get('vendor_name', 'Unknown Vendor')),
                 'agency': record.get('agency_name', 'Unknown Agency'),
-                'amount': self._parse_amount(record.get('amount', record.get('spending_amount'))),
+                'amount': amount,
+                'amount_str': f"${amount:,.2f}" if amount > 0 else "$0",
                 'title': f"NYC Spending: {record.get('purpose', record.get('description', 'Payment'))}",
                 'date': record.get('spending_date', record.get('check_date')),
                 'fiscal_year': record.get('fiscal_year'),
@@ -240,19 +309,48 @@ class CheckbookNYCAdapter:
             return None
 
     def _normalize_socrata_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Normalize a record from Socrata dataset (fallback)."""
+        """Normalize a record from Socrata dataset with proper field mapping."""
         try:
+            # Extract key fields from actual Socrata structure
+            vendor_name = record.get('vendor_name', 'Unknown Vendor')
+            agency_name = record.get('agency_name', 'Unknown Agency') 
+            contract_amount = self._parse_amount(record.get('contract_amount', 0))
+            short_title = record.get('short_title', 'Unknown Purpose')
+            request_id = record.get('request_id', record.get('pin', 'unknown'))
+            
+            # Create comprehensive title
+            notice_type = record.get('type_of_notice_description', '')
+            category = record.get('category_description', '')
+            title_parts = ["NYC Contract:", short_title]
+            if notice_type:
+                title_parts.append(f"({notice_type})")
+            title = " ".join(title_parts)
+            
+            # Build description with key details
+            description_parts = [short_title]
+            if category:
+                description_parts.append(f"Category: {category}")
+            if notice_type:
+                description_parts.append(f"Type: {notice_type}")
+            selection_method = record.get('selection_method_description')
+            if selection_method:
+                description_parts.append(f"Method: {selection_method}")
+                
             return {
-                'id': f"checkbook_socrata_{record.get('contract_id', 'unknown')}",
+                'id': f"checkbook_socrata_{request_id}",
                 'source': 'checkbook',
                 'type': 'contract',
-                'vendor': record.get('vendor_name', record.get('prime_vendor', 'Unknown Vendor')),
-                'agency': record.get('agency_name', 'Unknown Agency'),
-                'amount': self._parse_amount(record.get('contract_amount')),
-                'title': f"NYC Contract: {record.get('short_title', record.get('purpose', 'Unknown Purpose'))}",
+                'vendor': vendor_name,
+                'agency': agency_name,
+                'amount': contract_amount,
+                'amount_str': f"${contract_amount:,.2f}" if contract_amount > 0 else "$0",
+                'title': title,
                 'date': record.get('start_date'),
+                'end_date': record.get('end_date'),
                 'fiscal_year': record.get('fiscal_year'),
-                'description': record.get('short_title'),
+                'description': " | ".join(description_parts),
+                'pin': record.get('pin'),
+                'vendor_address': record.get('vendor_address'),
                 'raw_data': record
             }
         except Exception as e:

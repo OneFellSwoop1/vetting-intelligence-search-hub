@@ -7,25 +7,49 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .routers import search, correlation, auth
 from .websocket import websocket_endpoint
+from .resource_management import cleanup_manager
 
-# Load environment variables from environment.env file first
-# Try multiple relative paths to handle different working directories
-env_paths = [
-    'environment.env',  # If running from project root
-    '../environment.env',  # If running from backend directory
-    '../../environment.env'  # If running from backend/app directory
-]
+# Enhanced environment variable loading with validation
+def load_environment_variables():
+    """Load and validate environment variables with proper error handling"""
+    env_paths = [
+        'environment.env',  # If running from project root
+        'backend/environment.env',  # Alternative root location
+        '../environment.env',  # If running from backend directory
+        '../../environment.env'  # If running from backend/app directory
+    ]
+    
+    loaded_env = False
+    for env_path in env_paths:
+        env_file = pathlib.Path(env_path)
+        if env_file.exists():
+            try:
+                load_dotenv(env_path, override=False)  # Don't override existing env vars
+                print(f"✅ Loaded environment variables from: {env_path}")
+                loaded_env = True
+                break
+            except Exception as e:
+                print(f"⚠️ Error loading {env_path}: {e}")
+                continue
+    
+    if not loaded_env:
+        print("⚠️ Could not find environment.env file in any expected location")
+        print("   Using system environment variables only")
+    
+    # Validate critical environment variables
+    critical_vars = ['DATABASE_URL']
+    missing_vars = []
+    for var in critical_vars:
+        if not os.getenv(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        print(f"⚠️ Missing critical environment variables: {', '.join(missing_vars)}")
+    
+    return loaded_env
 
-loaded_env = False
-for env_path in env_paths:
-    if pathlib.Path(env_path).exists():
-        load_dotenv(env_path)
-        print(f"✅ Loaded environment variables from: {env_path}")
-        loaded_env = True
-        break
-
-if not loaded_env:
-    print("⚠️ Could not find environment.env file in any expected location")
+# Load environment variables
+load_environment_variables()
 
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -132,6 +156,12 @@ async def startup_event():
 async def shutdown_event():
     """Clean up resources on shutdown."""
     logger.info("🛑 Shutting down Vetting Intelligence Search Hub API...")
+    
+    # Clean up all managed resources
+    try:
+        await cleanup_manager.cleanup_all()
+    except Exception as e:
+        logger.error(f"❌ Error during resource cleanup: {e}")
     
     # Close database connections
     try:

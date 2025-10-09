@@ -7,6 +7,8 @@ from typing import Optional, Any
 import logging
 from redis.exceptions import ConnectionError, RedisError
 
+from .error_handling import handle_sync_errors, CacheError
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,36 +32,30 @@ class CacheService:
             logger.warning(f"Redis cache not available: {e}")
             self.enabled = False
     
+    @handle_sync_errors(default_return=None)
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache"""
         if not self.enabled:
             return None
             
-        try:
-            value = self.redis_client.get(key)
-            if value:
-                return json.loads(value)
-            return None
-        except (RedisError, json.JSONDecodeError) as e:
-            logger.warning(f"Cache get error for key {key}: {e}")
-            return None
+        value = self.redis_client.get(key)
+        if value:
+            return json.loads(value)
+        return None
 
     async def get_async(self, key: str) -> Optional[Any]:
         """Async get value from cache"""
         return self.get(key)  # Redis operations are fast, sync is fine
     
+    @handle_sync_errors(default_return=False)
     def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
         """Set value in cache with TTL"""
         if not self.enabled:
             return False
             
-        try:
-            serialized_value = json.dumps(value, default=str)
-            self.redis_client.setex(key, ttl, serialized_value)
-            return True
-        except (RedisError, TypeError) as e:
-            logger.warning(f"Cache set error for key {key}: {e}")
-            return False
+        serialized_value = json.dumps(value, default=str)
+        self.redis_client.setex(key, ttl, serialized_value)
+        return True
 
     async def set_async(self, key: str, value: Any, ttl: int = 3600) -> bool:
         """Async set value in cache with TTL"""
@@ -239,13 +235,15 @@ class CacheService:
         
         except Exception as e:
             logger.error(f"Error caching results for query '{query}': {e}")
-            # Log the problematic data for debugging
-            logger.error(f"Debug - results type: {type(results)}")
-            if results:
-                logger.error(f"Debug - first result type: {type(results[0])}")
-                logger.error(f"Debug - first result: {results[0]}")
-            logger.error(f"Debug - total_hits type: {type(total_hits)}")
-            logger.error(f"Debug - total_hits: {total_hits}")
+            
+            # Detailed debugging only in development
+            if os.getenv("DETAILED_ERRORS", "false").lower() == "true":
+                logger.debug(f"Debug - results type: {type(results)}")
+                if results:
+                    logger.debug(f"Debug - first result type: {type(results[0])}")
+                    logger.debug(f"Debug - first result: {results[0]}")
+                logger.debug(f"Debug - total_hits type: {type(total_hits)}")
+                logger.debug(f"Debug - total_hits: {total_hits}")
             # Don't raise exception to avoid breaking search functionality
     
     def get_cached_analysis(self, cache_key: str) -> Optional[dict]:

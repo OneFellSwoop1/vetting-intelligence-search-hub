@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import asyncio
@@ -16,6 +16,9 @@ from ..services.checkbook import CheckbookNYCService
 from ..schemas import SearchResult
 from ..cache import CacheService
 from ..user_management import UserProfile, check_user_rate_limit
+from ..input_validation import ValidatedSearchRequest, create_validation_error_response
+from ..error_handling import handle_async_errors, standardize_api_error, ValidationError
+from ..response_standards import create_search_response, create_error_response
 from fastapi import Query
 
 router = APIRouter(prefix="/api/v1")
@@ -24,11 +27,8 @@ logger = logging.getLogger(__name__)
 # Initialize cache service
 cache_service = CacheService()
 
-class SearchRequest(BaseModel):
-    query: str
-    year: Optional[str] = None
-    jurisdiction: Optional[str] = None
-    sources: Optional[List[str]] = None
+# Use the validated search request model
+SearchRequest = ValidatedSearchRequest
 
 def analyze_results(results: list) -> Dict[str, Any]:
     """Analyze search results to provide financial and statistical insights."""
@@ -97,6 +97,7 @@ def analyze_results(results: list) -> Dict[str, Any]:
     }
 
 @router.post("/search")
+@handle_async_errors(default_return={"error": "Search service temporarily unavailable"})
 async def search(
     request: SearchRequest,
     user: UserProfile = Depends(check_user_rate_limit)
@@ -111,15 +112,12 @@ async def search(
     cached_results = cache_service.get_cached_results(request.query, request.year, request.jurisdiction)
     if cached_results:
         logger.info(f"Returning cached results for query: '{request.query}'")
-        return {
-            "total_hits": cached_results['total_hits'],
-            "search_stats": {
-                "total_results": len(cached_results['results']),
-                "per_source": cached_results['total_hits']
-            },
-            "results": cached_results['results'],
-            "analytics": analyze_results(cached_results['results'])
-        }
+        return create_search_response(
+            results=cached_results['results'],
+            total_hits=cached_results['total_hits'],
+            analytics=analyze_results(cached_results['results']),
+            message=f"Search results for '{request.query}' (cached)"
+        )
     
     # Convert year to int if provided
     year_int = int(request.year) if request.year and request.year.isdigit() else None
@@ -228,25 +226,31 @@ async def search(
     # Cache the results
     cache_service.cache_results(request.query, total_hits, results, request.year, request.jurisdiction)
     
-    # Return response with analytics
-    return {
-        "total_hits": total_hits,
-        "search_stats": {
-            "total_results": total_results,
-            "per_source": total_hits
-        },
-        "results": results,
-        "analytics": analyze_results(results)
-    }
+    # Return standardized response with analytics
+    return create_search_response(
+        results=results,
+        total_hits=total_hits,
+        analytics=analyze_results(results),
+        message=f"Search completed for '{request.query}'"
+    )
 
 @router.get("/analytics/{query}")
 async def get_analytics(query: str, year: Optional[str] = None, jurisdiction: Optional[str] = None):
     """Get detailed analytics for a specific search query."""
     cached_results = cache_service.get_cached_results(query, year, jurisdiction)
     if not cached_results:
-        return {"error": "No cached results found. Please run a search first."}
+        return create_error_response(
+            message="No cached results found. Please run a search first.",
+            error_code="CACHE_MISS"
+        )
     
-    return analyze_results(cached_results['results'])
+    analytics_data = analyze_results(cached_results['results'])
+    return create_search_response(
+        results=[],  # Analytics endpoint doesn't return results
+        total_hits={},
+        analytics=analytics_data,
+        message=f"Analytics for '{query}'"
+    )
 
 @router.get("/cache/stats")
 async def get_cache_stats():

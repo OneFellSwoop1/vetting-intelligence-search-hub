@@ -5,6 +5,8 @@ import hashlib
 import os
 from typing import List, Dict, Any
 from datetime import datetime
+from ..search_utils.company_normalizer import generate_variations
+from ..error_handling import handle_async_errors, DataSourceError
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,7 @@ class NYSEthicsAdapter:
             
         return headers
 
+    @handle_async_errors(default_return=[], reraise_on=(DataSourceError,))
     async def search(self, query: str, year: int = None, ultra_fast_mode: bool = False) -> List[Dict[str, Any]]:
         """High-performance search with aggressive timeout controls and smart caching"""
         mode = "ultra-fast" if ultra_fast_mode else "normal"
@@ -168,45 +171,38 @@ class NYSEthicsAdapter:
         try:
             url = f"{self.base_url}/{dataset_id}.json"
             
-            # FIXED: Proper query parameters with correct encoding
-            query_clean = query.replace("'", "''")  # Escape single quotes
-            
-            # Use simpler text search instead of complex LIKE queries
-            params = {
-                "$limit": "15",
-                "$q": query_clean,  # Use simple text search
-                "$order": "reporting_year DESC"
-            }
-            
-            # Add year filter if provided
-            if year:
-                params["reporting_year"] = str(year)
-            
             headers = self._get_auth_headers()
-            
-            # Debug logging
-            logger.debug(f"NY State {dataset_name} URL: {url}")
-            logger.debug(f"NY State {dataset_name} params: {params}")
-            
-            # Individual dataset timeout
             dataset_timeout = aiohttp.ClientTimeout(total=timeout_seconds)
-            
-            async with session.get(url, params=params, headers=headers, timeout=dataset_timeout) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    logger.info(f"✅ NY State {dataset_name} returned {len(data)} records in <{timeout_seconds}s")
-                    
-                    # Parse results efficiently
-                    results = []
-                    for item in data:
-                        result = self._parse_lobbying_record(item, dataset_name)
-                        if result:
-                            results.append(result)
-                    
-                    return results
-                else:
-                    logger.warning(f"NY State {dataset_name} API returned status {response.status}")
-                    return []
+
+            # Try with a few variations to improve recall
+            variations = generate_variations(query, limit=3)
+            aggregated: List[Dict[str, Any]] = []
+            for q in variations:
+                query_clean = q.replace("'", "''")
+                params = {
+                    "$limit": "15",
+                    "$q": query_clean,
+                    "$order": "reporting_year DESC"
+                }
+                if year:
+                    params["reporting_year"] = str(year)
+
+                logger.debug(f"NY State {dataset_name} URL: {url}")
+                logger.debug(f"NY State {dataset_name} params: {params}")
+
+                async with session.get(url, params=params, headers=headers, timeout=dataset_timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        logger.info(f"✅ NY State {dataset_name} returned {len(data)} records in <{timeout_seconds}s")
+                        for item in data:
+                            result = self._parse_lobbying_record(item, dataset_name)
+                            if result:
+                                aggregated.append(result)
+                        if len(aggregated) >= 15:
+                            break
+                    else:
+                        logger.warning(f"NY State {dataset_name} API returned status {response.status}")
+            return aggregated
                     
         except asyncio.TimeoutError:
             logger.warning(f"⏰ Timeout searching {dataset_name} dataset after {timeout_seconds}s")

@@ -39,12 +39,12 @@ pytest-asyncio==0.21.1
 pytest-mock==3.12.0
 
 # Data analysis (optional, for correlation features)
-pandas>=2.2.0
-numpy>=2.0.0
+pandas>=2.0.0
+numpy>=1.24.0
 
 # Web scraping utilities
 beautifulsoup4==4.12.2
-lxml==4.9.3
+lxml>=4.9.0
 
 # Rate limiting and request management
 aiofiles==23.2.1
@@ -54,9 +54,9 @@ tenacity==8.2.3
 fuzzywuzzy==0.18.0
 python-levenshtein==0.25.1
 openpyxl==3.1.3
-matplotlib==3.8.4
-seaborn==0.13.2
-scikit-learn==1.4.2
+matplotlib>=3.7.0
+seaborn>=0.12.0
+scikit-learn>=1.3.0
 
 # Enhanced search capabilities
 rapidfuzz==3.5.2
@@ -65,12 +65,24 @@ dateparser==1.2.0
 pyyaml==6.0.1
 
 # Database dependencies
-sqlalchemy==2.0.30
-asyncpg==0.29.0
-alembic==1.13.1
-psycopg2-binary==2.9.9
+sqlalchemy>=2.0.30
+asyncpg>=0.29.0
+alembic>=1.13.1
+psycopg2-binary>=2.9.9
+aiosqlite>=0.20.0
+greenlet>=3.0.0
 
 # Authentication dependencies
 pyjwt==2.8.0
 passlib[bcrypt]==1.7.4
-email-validator==2.1.1 
+email-validator==2.1.1
+
+# Missing dependencies for enhanced features
+mammoth==1.7.2
+# Note: TensorFlow is large and optional - uncomment if needed
+# tensorflow>=2.15.0
+# spacy model download: python -m spacy download en_core_web_sm
+
+# Additional missing dependencies
+python-magic==0.4.27
+cryptography>=41.0.0 

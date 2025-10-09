@@ -24,12 +24,14 @@ interface CheckbookNYCStyleResultsProps {
   results: CheckbookResult[];
   isLoading?: boolean;
   searchQuery?: string;
+  onViewDetails?: (result: CheckbookResult) => void;
 }
 
 const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({ 
   results, 
   isLoading, 
-  searchQuery = "Search Results" 
+  searchQuery = "Search Results",
+  onViewDetails
 }) => {
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -326,8 +328,11 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
                               View
                             </a>
                           )}
-                          <button className="text-blue-600 hover:text-blue-800 text-xs">
-                            Details
+                          <button 
+                            onClick={() => onViewDetails?.(result)}
+                            className="text-blue-600 hover:text-blue-800 text-xs hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                          >
+                            View Details
                           </button>
                         </div>
                       </td>

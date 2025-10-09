@@ -21,9 +21,10 @@ interface SearchResult {
 interface NYCLobbyistStyleResultsProps {
   results: SearchResult[];
   isLoading?: boolean;
+  onViewDetails?: (result: SearchResult) => void;
 }
 
-const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ results, isLoading }) => {
+const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ results, isLoading, onViewDetails }) => {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [searchBy, setSearchBy] = useState<'entity' | 'client' | 'all'>('all');
   const [selectedYear, setSelectedYear] = useState<string>('');
@@ -315,8 +316,11 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
                               View
                             </a>
                           )}
-                          <button className="text-blue-600 hover:text-blue-800 text-xs">
-                            Details
+                          <button 
+                            onClick={() => onViewDetails?.(result)}
+                            className="text-blue-600 hover:text-blue-800 text-xs hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                          >
+                            View Details
                           </button>
                         </div>
                       </td>
