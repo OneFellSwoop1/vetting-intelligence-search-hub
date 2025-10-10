@@ -9,7 +9,7 @@ from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 
 from ..models import SearchQuery, SearchResult, CorrelationAnalysis, DataSourceStatus
-from ..schemas import SearchRequest
+from ..input_validation import ValidatedSearchRequest
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class DatabaseService:
     
     async def create_search_query(
         self,
-        request: SearchRequest,
+        request: ValidatedSearchRequest,
         user_ip: str,
         user_agent: Optional[str] = None
     ) -> SearchQuery:

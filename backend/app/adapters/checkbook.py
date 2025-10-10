@@ -12,6 +12,7 @@ from .base import HTTPAdapter
 from ..schemas import SearchResult
 from ..search_utils.company_normalizer import generate_variations, similarity
 from ..error_handling import handle_async_errors, DataSourceError
+from ..resource_management import managed_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class CheckbookNYCAdapter(HTTPAdapter):
         )
         
         # Initialize cache (already done in base class)
-        if cache_service.is_available():
+        if self.cache.is_available():
             logger.info("✅ Redis caching enabled for Checkbook NYC adapter")
 
     @handle_async_errors(default_return=[], reraise_on=(DataSourceError,))
@@ -75,7 +76,7 @@ class CheckbookNYCAdapter(HTTPAdapter):
         """Execute the actual CheckbookNYC search."""
         all_results = []
 
-        async with managed_http_client("checkbook") as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             # Use default limit
             search_limit = 50
 
