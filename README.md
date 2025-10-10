@@ -1,16 +1,16 @@
 # 🔍 Vetting Intelligence Search Hub
 ## Enterprise Government Transparency & Due Diligence Platform
 
-> **Production-ready platform that consolidates multi-jurisdictional government data sources for comprehensive due diligence, compliance research, and transparency analysis. Replaces expensive commercial tools with advanced correlation analysis and real-time data processing.**
+> **Our production-ready platform consolidates multi-jurisdictional government data sources for comprehensive due diligence, compliance research, and transparency analysis. This platform replaces expensive commercial tools with advanced correlation analysis and real-time data processing.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Next.js 14](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
 [![Enterprise Ready](https://img.shields.io/badge/enterprise-ready-gold.svg)](#enterprise-features)
 
-## 🎯 **What This Platform Does**
+## 🎯 **What Our Platform Does**
 
-**Vetting Intelligence Search Hub** is a comprehensive government transparency platform that provides **enterprise-grade due diligence and compliance research** through advanced correlation analysis across multiple official government data sources.
+**Vetting Intelligence Search Hub** is our comprehensive government transparency platform that provides **enterprise-grade due diligence and compliance research** through advanced correlation analysis across multiple official government data sources.
 
 ### 💼 **Enterprise Value Proposition**
 - **Replaces commercial tools** costing $10,000+/year (Thomson Reuters, LexisNexis, etc.)
@@ -29,6 +29,7 @@
 
 | Data Source | Jurisdiction | Records | Coverage | Update Frequency |
 |-------------|--------------|---------|----------|------------------|
+| **FEC Campaign Finance** | Federal | 8M+ | 1975-Present | Real-time |
 | **NYC Checkbook** | New York City | 10M+ | 2008-Present | Daily |
 | **Federal LDA (Senate)** | Federal | 500K+ | 1999-Present | Quarterly |
 | **Federal LDA (House)** | Federal | 300K+ | 1999-Present | Quarterly |
@@ -117,6 +118,9 @@ python -m spacy download en_core_web_sm
 Edit `backend/environment.env`:
 
 ```env
+# FEC Campaign Finance API - Free
+FEC_API_KEY=your_fec_api_key
+
 # NYC Open Data (Socrata API) - Free
 SOCRATA_API_KEY_ID=your_socrata_key_id
 SOCRATA_API_KEY_SECRET=your_socrata_key_secret
@@ -127,8 +131,9 @@ LDA_API_KEY=your_senate_lda_api_key
 ```
 
 ### **Getting API Keys**
-1. **NYC Open Data**: [Register at data.cityofnewyork.us](https://data.cityofnewyork.us/)
-2. **Senate LDA**: [Contact for enhanced rate limits](https://lda.senate.gov/api/) (optional)
+1. **FEC API**: [Register at api.data.gov/signup](https://api.data.gov/signup/) (required for campaign finance)
+2. **NYC Open Data**: [Register at data.cityofnewyork.us](https://data.cityofnewyork.us/)
+3. **Senate LDA**: [Contact for enhanced rate limits](https://lda.senate.gov/api/) (optional)
 
 ## 🐳 **Docker Deployment**
 
@@ -172,14 +177,15 @@ curl -X POST "http://localhost:8000/api/v1/correlation" \
 ### **Sample Response**
 ```json
 {
-  "company_name": "Microsoft Corporation",
-  "total_results": 342,
-  "total_financial_activity": 125000000,
-  "correlation_score": 0.87,
+  "company_name": "Google Corporation",
+  "total_results": 117,
+  "total_financial_activity": 178900000,
+  "correlation_score": 0.92,
   "jurisdictional_presence": {
-    "nyc_contracts": {"count": 45, "total_amount": 12500000},
-    "federal_lobbying": {"count": 78, "total_amount": 8750000},
-    "nyc_lobbying": {"count": 12, "registrations": 5}
+    "nyc_contracts": {"count": 6, "total_amount": 923000},
+    "federal_lobbying": {"count": 50, "total_amount": 15750000},
+    "nyc_lobbying": {"count": 19, "registrations": 8},
+    "fec_campaign_finance": {"count": 42, "total_amount": 2500000}
   }
 }
 ```

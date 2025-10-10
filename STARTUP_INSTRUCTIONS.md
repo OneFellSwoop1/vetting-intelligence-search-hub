@@ -2,16 +2,17 @@
 
 ## ✅ Quick Start (Recommended)
 
-The easiest way to start the application with all fixes applied:
+The easiest way to start the application:
 
 ```bash
-./start_simple.sh
+./start_application.sh
 ```
 
 This script automatically:
-- ✅ Uses the correct API key from `backend/environment.env`
+- ✅ Uses the correct API keys from `backend/environment.env`
 - ✅ Activates the virtual environment
 - ✅ Starts both backend and frontend
+- ✅ Includes FEC campaign finance integration
 - ✅ Works immediately without manual configuration
 
 ## 📊 Application URLs
@@ -120,13 +121,14 @@ After starting the application:
 
 ## 🎯 Expected Search Results
 
-A successful search for "Microsoft" should return:
-- **Senate LDA**: ~50 results (lobbying filings)
-- **NYC Checkbook**: ~15-20 results (contracts)  
-- **NY State Ethics**: ~20 results (procurement records)
-- **NYC Lobbyist**: ~15-20 results (lobbyist registrations)
+A successful search for "Google" returns:
+- **FEC Campaign Finance**: 42 results (political contributions & expenditures)
+- **Senate LDA**: 50 results (federal lobbying filings)
+- **NYC Checkbook**: 6 results (contracts totaling $923K+)
+- **NYC Lobbyist**: 19 results (local lobbying registrations)
+- **NY State Ethics**: 0 results (no state-level activity)
 
-Total: 100+ results across all sources
+Total: 117+ results across 5 data sources with $178.9M+ financial activity
 
 ## 🆘 Troubleshooting
 

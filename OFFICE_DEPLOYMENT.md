@@ -2,7 +2,7 @@
 
 ## 🎯 **Ready for Office Rollout!**
 
-Your Vetting Intelligence Search Hub is now **enterprise-ready** and can be safely deployed for multiple users in your office environment.
+Our Vetting Intelligence Search Hub is now **enterprise-ready** and can be safely deployed for multiple users in office environments.
 
 ## ✅ **What "Enterprise Ready" Means:**
 
@@ -254,12 +254,19 @@ for query in recent:
 - Add year filters for more focused results
 - Check multiple data sources for comprehensive information
 
+## Data Sources Available:
+- FEC Campaign Finance: Political contributions and expenditures
+- Federal Lobbying: Senate and House LDA records
+- NYC Contracts: Municipal contracts and spending
+- NYC Lobbying: Local lobbying activities
+- NY State Ethics: State-level procurement and lobbying
+
 ## Rate Limits:
 - Registered users: 200 searches/hour, 1000/day
 - Be mindful of usage to ensure system availability for everyone
 
 ## Support:
-- Contact [YOUR_NAME] for technical issues
+- Contact system administrator for technical issues
 - Check system status at: http://YOUR_SERVER_IP:8000/health
 ```
 
