@@ -85,7 +85,6 @@ interface SearchFilters {
 const sourceConfig = {
   senate_lda: { name: 'Senate LDA (House & Senate Lobbying)', color: 'bg-red-100 text-red-800', icon: '🏛️' },
   checkbook: { name: 'NYC Contracts', color: 'bg-green-100 text-green-800', icon: '📋' },
-  dbnyc: { name: 'FEC Campaign Finance', color: 'bg-blue-100 text-blue-800', icon: '💰' },
   fec: { name: 'FEC Campaign Finance', color: 'bg-blue-100 text-blue-800', icon: '🗳️' },
   nys_ethics: { name: 'NY State', color: 'bg-yellow-100 text-yellow-800', icon: '🏛️' },
   nyc_lobbyist: { name: 'NYC Lobbyist', color: 'bg-orange-100 text-orange-800', icon: '🤝' }
@@ -585,7 +584,7 @@ export default function VettingIntelligenceHub() {
               Financial & Contract Activities
             </h3>
             <div className="space-y-4">
-              {['checkbook', 'dbnyc'].map((source, index) => {
+              {['checkbook', 'fec'].map((source, index) => {
                 const count = totalHits[source] || 0;
                 const sourceInfo = sourceConfig[source as keyof typeof sourceConfig];
                 if (!sourceInfo) return null;
