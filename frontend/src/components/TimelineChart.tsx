@@ -19,7 +19,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ data, onEventClick }) => 
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null);
   
-  const sortedData = data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sortedData = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const getSourceColor = (source: string) => {
     const colors: Record<string, string> = {

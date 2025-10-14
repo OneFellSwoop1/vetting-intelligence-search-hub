@@ -365,7 +365,7 @@ export default function VettingIntelligenceHub() {
         source: r.source,
         type: r.record_type || 'unknown'
       }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Create network data for entity relationships
     const networkNodes: NetworkNode[] = [];
