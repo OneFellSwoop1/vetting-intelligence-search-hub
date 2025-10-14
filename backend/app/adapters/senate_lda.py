@@ -43,8 +43,14 @@ async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
         
         results = []
         
-        # CONSERVATIVE APPROACH: Search only 2 most recent years if no year specified
-        years_to_search = [year] if year else [2024, 2023]
+        # COMPREHENSIVE APPROACH: Search broader historical range for thorough vetting
+        # Senate LDA data goes back to ~1999, but most relevant data is from 2008+
+        if year:
+            years_to_search = [year]
+        else:
+            # Search last 16 years for comprehensive vetting coverage
+            current_year = 2024
+            years_to_search = list(range(current_year, current_year - 16, -1))  # 2024 down to 2009
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             for search_year in years_to_search:
@@ -89,7 +95,7 @@ async def _search_single_term(client: httpx.AsyncClient, search_term: str, searc
         # Build URL with query parameters
         base_url = f"{LDA_API_BASE}/filings/"
         params = {
-            "client_name": search_term,
+            "registrant_name": search_term,  # Search by lobbying firm name, not client
             "filing_year": search_year,
             "page_size": 50,  # Reduced page size for faster responses
             "ordering": "-dt_posted"
