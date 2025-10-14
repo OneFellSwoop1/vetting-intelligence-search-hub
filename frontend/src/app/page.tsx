@@ -1114,7 +1114,7 @@ export default function VettingIntelligenceHub() {
               }`}
             >
               <FileText className="w-5 h-5" />
-              Results ({displayResults.length})
+              Results ({results.length})
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.02, y: -1 }}
