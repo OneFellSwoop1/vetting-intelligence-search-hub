@@ -3,7 +3,7 @@
 
 > **Our production-ready platform consolidates multi-jurisdictional government data sources for comprehensive due diligence, compliance research, and transparency analysis. This platform replaces expensive commercial tools with advanced correlation analysis and real-time data processing.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](#)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Next.js 14](https://img.shields.io/badge/Next.js-14-black.svg)](https://nextjs.org/)
 [![Enterprise Ready](https://img.shields.io/badge/enterprise-ready-gold.svg)](#enterprise-features)
@@ -276,7 +276,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 📄 **License**
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Copyright © 2024-2025 POISSON AI®, LLC. All Rights Reserved.
+
+This software is proprietary and confidential. Unauthorized copying, distribution, 
+modification, or use of this software is strictly prohibited without express 
+written permission from POISSON AI®, LLC.
+
+For licensing inquiries, contact: legal@poissonai.com
 
 ### **Data Sources & Attribution**
 - Data provided by NYC Open Data, Federal Election Commission, U.S. Senate, U.S. House of Representatives, and NY State Ethics Commission

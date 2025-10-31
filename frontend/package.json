@@ -2,6 +2,7 @@
   "name": "vetting-intelligence-search-hub-frontend",
   "version": "1.0.0",
   "private": true,
+  "license": "PROPRIETARY",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -105,9 +105,13 @@ class CheckbookNYCAdapter(HTTPAdapter):
                     if len(all_results) >= search_limit:
                         break
         
-        # Remove duplicates and sort by amount
+        # Remove duplicates and sort by date (most recent first)
         unique_results = self._deduplicate_results(all_results)
-        sorted_results = sorted(unique_results, key=lambda x: x.get('amount', 0), reverse=True)
+        sorted_results = sorted(
+            unique_results, 
+            key=lambda x: x.get('date', '1900-01-01'),  # Sort by date descending
+            reverse=True
+        )
 
         # Prefer results that closely match the original query
         filtered: List[Dict[str, Any]] = []
@@ -121,7 +125,7 @@ class CheckbookNYCAdapter(HTTPAdapter):
         logger.info(f"✅ CheckbookNYC search completed: {len(sorted_results)} results")
         
         # Return dictionaries directly (like other adapters) instead of SearchResult objects
-        return sorted_results[:limit]
+        return sorted_results[:search_limit]
 
     async def _search_contracts(self, client: httpx.AsyncClient, query: str, limit: int, year: int = None) -> List[Dict[str, Any]]:
         """Search contracts using the CheckbookNYC contracts API."""
@@ -209,7 +213,7 @@ class CheckbookNYCAdapter(HTTPAdapter):
             params = {
                 '$q': query.strip(),  # Full-text search
                 '$limit': limit // 2,
-                '$order': 'contract_amount DESC'
+                '$order': 'start_date DESC'  # Get most recent data first
             }
             
             if year:
@@ -244,7 +248,7 @@ class CheckbookNYCAdapter(HTTPAdapter):
                 params = {
                     '$where': where_clause,
                     '$limit': limit - len(all_results),
-                    '$order': 'contract_amount DESC'
+                    '$order': 'start_date DESC'  # Get most recent data first
                 }
                 
                 logger.info(f"🔍 Socrata targeted search: vendor/title contains '{query}'")

@@ -104,6 +104,45 @@ export default function VettingIntelligenceHub() {
   const [showFilters, setShowFilters] = useState(false);
   const [displayCount, setDisplayCount] = useState(15);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [activeDataSource, setActiveDataSource] = useState<string>('all');
+  
+  // Refs for scrolling to specific sections
+  const checkbookRef = React.useRef<HTMLDivElement>(null);
+  const senateLdaRef = React.useRef<HTMLDivElement>(null);
+  const nycLobbyistRef = React.useRef<HTMLDivElement>(null);
+  const fecRef = React.useRef<HTMLDivElement>(null);
+  const nysEthicsRef = React.useRef<HTMLDivElement>(null);
+
+  // Helper function to scroll to specific data source section
+  const scrollToDataSource = (source: string) => {
+    setActiveDataSource(source);
+    
+    if (source === 'all') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    
+    // Map source names to refs
+    const refMap: { [key: string]: React.RefObject<HTMLDivElement> } = {
+      'checkbook': checkbookRef,
+      'senate_lda': senateLdaRef,
+      'nyc_lobbyist': nycLobbyistRef,
+      'fec': fecRef,
+      'nys_ethics': nysEthicsRef
+    };
+    
+    const targetRef = refMap[source];
+    if (targetRef && targetRef.current) {
+      // Scroll to the section with some offset for better visibility
+      const elementPosition = targetRef.current.getBoundingClientRect().top + window.pageYOffset;
+      const offsetPosition = elementPosition - 100; // 100px offset from top
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Group NYC Lobbyist results by year for better organization
   const groupNYCResultsByYear = React.useCallback((results: SearchResult[]) => {
@@ -1106,7 +1145,10 @@ export default function VettingIntelligenceHub() {
             <motion.button
               whileHover={{ scale: 1.02, y: -1 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setCurrentView('search')}
+              onClick={() => {
+                setCurrentView('search');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
               className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
                 currentView === 'search' 
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
@@ -1119,7 +1161,10 @@ export default function VettingIntelligenceHub() {
             <motion.button
               whileHover={{ scale: 1.02, y: -1 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setCurrentView('analytics')}
+              onClick={() => {
+                setCurrentView('analytics');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
               className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
                 currentView === 'analytics' 
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
@@ -1166,101 +1211,305 @@ export default function VettingIntelligenceHub() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="space-y-6"
+            className="space-y-8"
           >
-            {/* CheckbookNYC-Style Results for Contract Data */}
-            {displayResults.some(r => r.source === 'checkbook') && (
-              <CheckbookNYCStyleResults 
-                results={displayResults.filter(r => r.source === 'checkbook').map(result => ({
-                  id: `${result.source}-${Math.random()}`,
-                  source: result.source,
-                  title: result.title,
-                  vendor: result.vendor,
-                  agency: result.agency,
-                  amount: typeof result.amount === 'string' 
-                    ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
-                    : result.amount,
-                  description: result.description || '',
-                  date: result.date,
-                  year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
-                  url: result.url,
-                  raw_records: [],
-                  client_count: result.client_count,
-                  registration_count: result.registration_count,
-                  record_type: result.record_type,
-                  entity_name: result.vendor,
-                  document_id: result.record_type
-                }))}
-                searchQuery={query}
-                isLoading={loading}
-                onViewDetails={(result) => handleViewDetails(result as any)}
-              />
+            {/* Results Summary Header with Data Source Filters */}
+            {results.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6"
+              >
+                <h2 className="text-2xl font-bold text-white mb-4">Search Results for "{query}"</h2>
+                
+                {/* Data Source Filter Tabs */}
+                <div className="mb-4">
+                  <p className="text-sm text-gray-300 mb-3">Filter by Data Source:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {/* All Sources Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => scrollToDataSource('all')}
+                      className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+                        activeDataSource === 'all'
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                          : 'backdrop-blur-sm bg-white/5 text-gray-300 border border-white/20 hover:bg-white/10'
+                      }`}
+                    >
+                      <span>All Sources</span>
+                      <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{results.length}</span>
+                    </motion.button>
+
+                    {/* Individual Source Buttons */}
+                    {Object.entries(totalHits).map(([source, count]) => {
+                      if (count === 0) return null;
+                      const sourceInfo = sourceConfig[source as keyof typeof sourceConfig];
+                      if (!sourceInfo) return null;
+                      return (
+                        <motion.button
+                          key={source}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => scrollToDataSource(source)}
+                          className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 ${
+                            activeDataSource === source
+                              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                              : 'backdrop-blur-sm bg-white/5 text-gray-300 border border-white/20 hover:bg-white/10'
+                          }`}
+                        >
+                          <span>{sourceInfo.icon}</span>
+                          <span>{sourceInfo.name}</span>
+                          <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{count}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Summary Stats */}
+                <div className="flex flex-wrap gap-4 pt-4 border-t border-white/10">
+                  <div className="text-sm text-gray-300">
+                    <span className="font-semibold text-white">
+                      {activeDataSource === 'all' 
+                        ? results.length 
+                        : displayResults.filter(r => r.source === activeDataSource || r.source === activeDataSource + '_year_header').length}
+                    </span> {activeDataSource === 'all' ? 'total' : ''} results
+                  </div>
+                  {activeDataSource === 'all' && (
+                    <div className="text-sm text-gray-300">
+                      across <span className="font-semibold text-white">{Object.keys(totalHits).filter(s => totalHits[s] > 0).length}</span> data sources
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* NYC Contracts - CheckbookNYC */}
+            {displayResults.some(r => r.source === 'checkbook') && (activeDataSource === 'all' || activeDataSource === 'checkbook') && (
+              <motion.div
+                ref={checkbookRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">📋</span>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">NYC Contracts</h3>
+                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'checkbook').length} contracts found</p>
+                  </div>
+                </div>
+                <CheckbookNYCStyleResults 
+                  results={displayResults.filter(r => r.source === 'checkbook').map(result => ({
+                    id: `${result.source}-${Math.random()}`,
+                    source: result.source,
+                    title: result.title,
+                    vendor: result.vendor,
+                    agency: result.agency,
+                    amount: typeof result.amount === 'string' 
+                      ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                      : result.amount,
+                    description: result.description || '',
+                    date: result.date,
+                    year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
+                    url: result.url,
+                    raw_records: [],
+                    client_count: result.client_count,
+                    registration_count: result.registration_count,
+                    record_type: result.record_type,
+                    entity_name: result.vendor,
+                    document_id: result.record_type
+                  }))}
+                  searchQuery={query}
+                  isLoading={loading}
+                  onViewDetails={(result) => handleViewDetails(result as any)}
+                />
+              </motion.div>
+            )}
+
+            {/* Federal Lobbying - Senate LDA */}
+            {displayResults.some(r => r.source === 'senate_lda') && (activeDataSource === 'all' || activeDataSource === 'senate_lda') && (
+              <motion.div
+                ref={senateLdaRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">🏛️</span>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">Federal Lobbying (Senate LDA)</h3>
+                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'senate_lda').length} lobbying records found</p>
+                  </div>
+                </div>
+                <NYCLobbyistStyleResults 
+                  results={displayResults.filter(r => r.source === 'senate_lda').map(result => ({
+                    id: `${result.source}-${Math.random()}`,
+                    source: result.source,
+                    title: result.title,
+                    vendor: result.vendor,
+                    agency: result.agency,
+                    amount: typeof result.amount === 'string' 
+                      ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                      : result.amount,
+                    description: result.description || '',
+                    date: result.date,
+                    year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
+                    url: result.url,
+                    raw_records: [],
+                    client_count: result.client_count,
+                    registration_count: result.registration_count,
+                    record_type: result.record_type
+                  }))}
+                  isLoading={loading}
+                  onViewDetails={(result) => handleViewDetails(result as any)}
+                />
+              </motion.div>
             )}
             
+            {/* NYC Lobbying */}
+            {displayResults.some(r => r.source === 'nyc_lobbyist') && (activeDataSource === 'all' || activeDataSource === 'nyc_lobbyist') && (
+              <motion.div
+                ref={nycLobbyistRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">🤝</span>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">NYC Lobbying</h3>
+                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'nyc_lobbyist' || r.source === 'nyc_lobbyist_year_header').length} lobbying records found</p>
+                  </div>
+                </div>
+                <NYCLobbyistStyleResults 
+                  results={displayResults.filter(r => r.source === 'nyc_lobbyist' || r.source === 'nyc_lobbyist_year_header').map(result => ({
+                    id: `${result.source}-${Math.random()}`,
+                    source: result.source,
+                    title: result.title,
+                    vendor: result.vendor,
+                    agency: result.agency,
+                    amount: typeof result.amount === 'string' 
+                      ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                      : result.amount,
+                    description: result.description || '',
+                    date: result.date,
+                    year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
+                    url: result.url,
+                    raw_records: [],
+                    client_count: result.client_count,
+                    registration_count: result.registration_count,
+                    record_type: result.record_type
+                  }))}
+                  isLoading={loading}
+                  onViewDetails={(result) => handleViewDetails(result as any)}
+                />
+              </motion.div>
+            )}
+
             {/* FEC Campaign Finance Results */}
-            {displayResults.some(r => r.source === 'fec') && (
-              <FECStyleResults 
-                results={displayResults.filter(r => r.source === 'fec').map(result => ({
-                  id: `${result.source}-${Math.random()}`,
-                  source: result.source,
-                  title: result.title,
-                  vendor: result.vendor,
-                  agency: result.agency,
-                  amount: typeof result.amount === 'string' 
-                    ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
-                    : result.amount,
-                  description: result.description || 'FEC Campaign Finance Record',
-                  date: result.date,
-                  year: result.year ? String(result.year) : undefined,
-                  url: result.url,
-                  record_type: result.record_type,
-                  // FEC-specific fields
-                  candidate_id: (result as any).candidate_id,
-                  committee_id: (result as any).committee_id,
-                  party: (result as any).party,
-                  office: (result as any).office,
-                  state: (result as any).state,
-                  district: (result as any).district,
-                  contributor_name: (result as any).contributor_name,
-                  contributor_employer: (result as any).contributor_employer,
-                  contributor_occupation: (result as any).contributor_occupation,
-                  contributor_city: (result as any).contributor_city,
-                  contributor_state: (result as any).contributor_state,
-                  committee_name: (result as any).committee_name,
-                  election_type: (result as any).election_type,
-                  two_year_transaction_period: (result as any).two_year_transaction_period,
-                  raw_data: (result as any).raw_data
-                }))}
-                searchQuery={query}
-                isLoading={loading}
-                onViewDetails={handleViewDetails}
-              />
+            {displayResults.some(r => r.source === 'fec') && (activeDataSource === 'all' || activeDataSource === 'fec') && (
+              <motion.div
+                ref={fecRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">🗳️</span>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">FEC Campaign Finance</h3>
+                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'fec').length} campaign finance records found</p>
+                  </div>
+                </div>
+                <FECStyleResults 
+                  results={displayResults.filter(r => r.source === 'fec').map(result => ({
+                    id: `${result.source}-${Math.random()}`,
+                    source: result.source,
+                    title: result.title,
+                    vendor: result.vendor,
+                    agency: result.agency,
+                    amount: typeof result.amount === 'string' 
+                      ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                      : result.amount,
+                    description: result.description || 'FEC Campaign Finance Record',
+                    date: result.date,
+                    year: result.year ? String(result.year) : undefined,
+                    url: result.url,
+                    record_type: result.record_type,
+                    // FEC-specific fields
+                    candidate_id: (result as any).candidate_id,
+                    committee_id: (result as any).committee_id,
+                    party: (result as any).party,
+                    office: (result as any).office,
+                    state: (result as any).state,
+                    district: (result as any).district,
+                    contributor_name: (result as any).contributor_name,
+                    contributor_employer: (result as any).contributor_employer,
+                    contributor_occupation: (result as any).contributor_occupation,
+                    contributor_city: (result as any).contributor_city,
+                    contributor_state: (result as any).contributor_state,
+                    committee_name: (result as any).committee_name,
+                    election_type: (result as any).election_type,
+                    two_year_transaction_period: (result as any).two_year_transaction_period,
+                    raw_data: (result as any).raw_data
+                  }))}
+                  searchQuery={query}
+                  isLoading={loading}
+                  onViewDetails={handleViewDetails}
+                />
+              </motion.div>
             )}
-            
-            {/* General Results - NYC Lobbying Style for All Data */}
-            {displayResults.length > 0 && (
-              <NYCLobbyistStyleResults 
-                results={displayResults.map(result => ({
-                  id: `${result.source}-${Math.random()}`,
-                  source: result.source,
-                  title: result.title,
-                  vendor: result.vendor,
-                  agency: result.agency,
-                  amount: typeof result.amount === 'string' 
-                    ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
-                    : result.amount,
-                  description: result.description || '',
-                  date: result.date,
-                  year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
-                  url: result.url,
-                  raw_records: [],
-                  client_count: result.client_count,
-                  registration_count: result.registration_count,
-                  record_type: result.record_type
-                }))}
-                isLoading={loading}
-                onViewDetails={(result) => handleViewDetails(result as any)}
-              />
+
+            {/* NY State Ethics */}
+            {displayResults.some(r => r.source === 'nys_ethics') && (activeDataSource === 'all' || activeDataSource === 'nys_ethics') && (
+              <motion.div
+                ref={nysEthicsRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center">
+                    <span className="text-2xl">⚖️</span>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">NY State Ethics</h3>
+                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'nys_ethics').length} ethics records found</p>
+                  </div>
+                </div>
+                <NYCLobbyistStyleResults 
+                  results={displayResults.filter(r => r.source === 'nys_ethics').map(result => ({
+                    id: `${result.source}-${Math.random()}`,
+                    source: result.source,
+                    title: result.title,
+                    vendor: result.vendor,
+                    agency: result.agency,
+                    amount: typeof result.amount === 'string' 
+                      ? parseFloat(result.amount.replace(/[$,]/g, '')) || undefined
+                      : result.amount,
+                    description: result.description || '',
+                    date: result.date,
+                    year: result.year ? (typeof result.year === 'string' ? parseInt(result.year) : result.year) : undefined,
+                    url: result.url,
+                    raw_records: [],
+                    client_count: result.client_count,
+                    registration_count: result.registration_count,
+                    record_type: result.record_type
+                  }))}
+                  isLoading={loading}
+                  onViewDetails={(result) => handleViewDetails(result as any)}
+                />
+              </motion.div>
             )}
 
             {/* No Results - Filtered */}
