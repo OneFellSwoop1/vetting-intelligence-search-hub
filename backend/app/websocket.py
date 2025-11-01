@@ -40,9 +40,10 @@ async def search_all_sources(query: str, year: Optional[str] = None, jurisdictio
     year_int = int(year) if year and year.isdigit() else None
     
     # Define all search tasks using singleton instances
+    # PERFORMANCE TEST: NYS Ethics adapter temporarily disabled
     search_tasks = [
         ("checkbook", get_adapter_instance('checkbook').search(query, year_int)),
-        ("nys_ethics", get_adapter_instance('nys_ethics').search(query, year_int)),
+        # ("nys_ethics", get_adapter_instance('nys_ethics').search(query, year_int)),
         ("senate_lda", get_adapter_instance('senate_lda').search(query, year_int)),
         ("nyc_lobbyist", get_adapter_instance('nyc_lobbyist').search(query, year_int)),
     ]
