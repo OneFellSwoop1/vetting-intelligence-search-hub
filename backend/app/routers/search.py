@@ -327,11 +327,10 @@ async def search(
         if source == "checkbook":
             adapter = CheckbookNYCAdapter()
             search_tasks.append(("checkbook", adapter.search(request.query, year_int)))
-        # PERFORMANCE TEST: NYS Ethics adapter temporarily disabled to test speed impact
-        # elif source == "nys_ethics":
-        #     # FIXED: Disable ultra-fast mode to use real NY State API instead of hardcoded results
-        #     adapter = NYSEthicsAdapter()
-        #     search_tasks.append(("nys_ethics", adapter.search(request.query, year_int, ultra_fast_mode=False)))
+        elif source == "nys_ethics":
+            # FIXED: Disable ultra-fast mode to use real NY State API instead of hardcoded results
+            adapter = NYSEthicsAdapter()
+            search_tasks.append(("nys_ethics", adapter.search(request.query, year_int, ultra_fast_mode=False)))
         elif source == "senate_lda":
             adapter = SenateHouseLDAAdapter()
             search_tasks.append(("senate_lda", adapter.search(request.query, year_int)))
