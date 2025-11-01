@@ -38,9 +38,18 @@ class CheckbookNYCAdapter(HTTPAdapter):
         self.app_token = os.getenv("SOCRATA_APP_TOKEN")
         self.api_key_id = os.getenv("SOCRATA_API_KEY_ID")
         self.api_key_secret = os.getenv("SOCRATA_API_KEY_SECRET")
-        self.MAIN_CHECKBOOK_DATASETS = [
-            "qyyg-4tf5",  # NYC Checkbook contracts (for compatibility)
+        
+        # Multiple datasets to search for comprehensive coverage
+        # NYC Open Data datasets that contain contract/procurement/notice data
+        self.CHECKBOOK_DATASETS = [
+            "dg92-zbpx",  # City Record Online - Procurement notices, public hearings (WORKING)
+            "qyyg-4tf5",  # NYC Checkbook - Procurement Notices subset (City Record Online)
+            "ujre-m2tj",  # Discretionary Award Tracker
+            "7pza-ynkh",  # MOCS 15 Largest Contracts
+            "rqvv-d722",  # Largest Requirements Contracts
         ]
+        # Legacy compatibility
+        self.MAIN_CHECKBOOK_DATASETS = self.CHECKBOOK_DATASETS
         
         # HTTP client configuration with proper timeouts
         self.timeout_config = httpx.Timeout(
@@ -203,74 +212,95 @@ class CheckbookNYCAdapter(HTTPAdapter):
             return []
 
     async def _search_socrata_enhanced(self, client: httpx.AsyncClient, query: str, limit: int, year: int = None) -> List[Dict[str, Any]]:
-        """Enhanced Socrata search using multiple search strategies."""
-        try:
-            # Use the main NYC contract dataset 
-            socrata_url = f"{self.socrata_base_url}/resource/qyyg-4tf5.json"
-            all_results = []
-            
-            # Strategy 1: Full-text search (most comprehensive)
-            params = {
-                '$q': query.strip(),  # Full-text search
-                '$limit': limit // 2,
-                '$order': 'start_date DESC'  # Get most recent data first
-            }
-            
-            if year:
-                # Add fiscal year filter for full-text search
-                params['$where'] = f"fiscal_year = '{year}'"
-            
-            logger.info(f"🔍 Socrata full-text search: '{query}'")
-            response = await client.get(socrata_url, params=params)
-            
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"✅ Full-text search returned {len(data)} records")
-                for item in data:
-                    normalized = self._normalize_socrata_record(item)
-                    if normalized:
-                        all_results.append(normalized)
-            
-            # Strategy 2: Targeted vendor/title search for better precision
-            if len(all_results) < limit:
-                where_conditions = [
-                    f"upper(vendor_name) like upper('%{query.strip()}%')",
-                    f"upper(short_title) like upper('%{query.strip()}%')"
-                ]
+        """Enhanced Socrata search using multiple datasets and search strategies."""
+        all_results = []
+        per_dataset_limit = max(10, limit // len(self.CHECKBOOK_DATASETS))
+        
+        # Search across multiple datasets for better coverage
+        for dataset_id in self.CHECKBOOK_DATASETS:
+            try:
+                socrata_url = f"{self.socrata_base_url}/resource/{dataset_id}.json"
+                dataset_results = []
                 
-                if year:
-                    where_conditions.append(f"fiscal_year = '{year}'")
+                # Strategy 1: Full-text search (most comprehensive)
+                try:
+                    params = {
+                        '$q': query.strip(),
+                        '$limit': per_dataset_limit // 2,
+                    }
+                    
+                    # Try to add date ordering if the field exists
+                    try:
+                        params['$order'] = 'start_date DESC'
+                    except:
+                        pass
+                    
+                    if year:
+                        params['$where'] = f"fiscal_year = '{year}' OR fisc_yr = '{year}'"
+                    
+                    logger.info(f"🔍 Searching dataset {dataset_id} with full-text: '{query}'")
+                    response = await client.get(socrata_url, params=params, timeout=10.0)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if isinstance(data, list) and len(data) > 0:
+                            logger.info(f"✅ Dataset {dataset_id} full-text returned {len(data)} records")
+                            for item in data:
+                                normalized = self._normalize_socrata_record(item)
+                                if normalized:
+                                    dataset_results.append(normalized)
+                except Exception as e:
+                    logger.debug(f"Full-text search on {dataset_id} failed: {e}")
                 
-                where_clause = " OR ".join(where_conditions[:2])
-                if year:
-                    where_clause = f"({where_clause}) AND fiscal_year = '{year}'"
+                # Strategy 2: Targeted field search (try common vendor field names)
+                if len(dataset_results) < per_dataset_limit // 2:
+                    try:
+                        # Try different vendor field name variations
+                        vendor_fields = ['vendor_name', 'payee_name', 'agy_nm']
+                        where_parts = [f"upper({field}) like upper('%{query.strip()}%')" for field in vendor_fields]
+                        where_clause = " OR ".join(where_parts)
+                        
+                        if year:
+                            where_clause = f"({where_clause}) AND (fiscal_year = '{year}' OR fisc_yr = '{year}')"
+                        
+                        params = {
+                            '$where': where_clause,
+                            '$limit': per_dataset_limit - len(dataset_results),
+                        }
+                        
+                        logger.info(f"🔍 Searching dataset {dataset_id} with targeted fields")
+                        response = await client.get(socrata_url, params=params, timeout=10.0)
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            if isinstance(data, list) and len(data) > 0:
+                                logger.info(f"✅ Dataset {dataset_id} targeted returned {len(data)} records")
+                                for item in data:
+                                    normalized = self._normalize_socrata_record(item)
+                                    if normalized and normalized.get('id') not in [r.get('id') for r in dataset_results]:
+                                        dataset_results.append(normalized)
+                    except Exception as e:
+                        logger.debug(f"Targeted search on {dataset_id} failed: {e}")
                 
-                params = {
-                    '$where': where_clause,
-                    '$limit': limit - len(all_results),
-                    '$order': 'start_date DESC'  # Get most recent data first
-                }
+                # Add dataset results to overall results
+                all_results.extend(dataset_results)
                 
-                logger.info(f"🔍 Socrata targeted search: vendor/title contains '{query}'")
-                response = await client.get(socrata_url, params=params)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"✅ Targeted search returned {len(data)} records")
-                    for item in data:
-                        normalized = self._normalize_socrata_record(item)
-                        if normalized:
-                            # Avoid duplicates
-                            if not any(r.get('id') == normalized.get('id') for r in all_results):
-                                all_results.append(normalized)
-            
-            # Use base class deduplication
-            unique_results = self._deduplicate_results(all_results)
-            return unique_results
-            
-        except Exception as e:
-            logger.error(f"❌ Enhanced Socrata search failed: {e}")
-            return []
+                if len(all_results) >= limit:
+                    break
+                    
+            except Exception as e:
+                logger.debug(f"❌ Dataset {dataset_id} search failed: {e}")
+                continue
+        
+        # Use base class deduplication
+        unique_results = self._deduplicate_results(all_results)
+        
+        if len(unique_results) > 0:
+            logger.info(f"✅ Enhanced Socrata search across {len(self.CHECKBOOK_DATASETS)} datasets returned {len(unique_results)} unique results")
+        else:
+            logger.warning(f"⚠️ No results found across any datasets for '{query}'")
+        
+        return unique_results[:limit]
     
     def _normalize_result(self, raw_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -359,19 +389,53 @@ class CheckbookNYCAdapter(HTTPAdapter):
             return None
 
     def _normalize_socrata_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Normalize a record from Socrata dataset with proper field mapping."""
+        """Normalize a record from Socrata dataset with flexible field mapping for multiple dataset schemas."""
         try:
-            # Extract key fields from actual Socrata structure
-            vendor_name = record.get('vendor_name', 'Unknown Vendor')
-            agency_name = record.get('agency_name', 'Unknown Agency') 
-            contract_amount = self._parse_amount(record.get('contract_amount', 0))
-            short_title = record.get('short_title', 'Unknown Purpose')
-            request_id = record.get('request_id', record.get('pin', 'unknown'))
+            # Try multiple field name variations for vendor (different datasets use different names)
+            vendor_name = (record.get('vendor_name') or 
+                          record.get('payee_name') or
+                          record.get('prime_vendor') or 
+                          record.get('agy_nm') or 
+                          'Unknown Vendor')
+            
+            # Try multiple field name variations for agency
+            agency_name = (record.get('agency_name') or 
+                          record.get('agy_nm') or
+                          record.get('agency') or
+                          record.get('department') or
+                          'Unknown Agency')
+            
+            # Try multiple field name variations for amount
+            amount = self._parse_amount(
+                record.get('contract_amount') or 
+                record.get('check_amount') or
+                record.get('all_fnd') or
+                record.get('cty_fnd') or
+                record.get('amount') or 
+                record.get('total_amount') or 
+                0
+            )
+            
+            # Try multiple field name variations for title/description
+            short_title = (record.get('short_title') or 
+                          record.get('title') or
+                          record.get('purpose') or
+                          record.get('description') or
+                          record.get('remark') or
+                          'NYC Record')
+            
+            # Try multiple field name variations for ID
+            request_id = (record.get('request_id') or 
+                         record.get('pin') or
+                         record.get('contract_id') or
+                         record.get('document_id') or
+                         record.get('id') or
+                         'unknown')
             
             # Create comprehensive title
             notice_type = record.get('type_of_notice_description', '')
             category = record.get('category_description', '')
-            title_parts = ["NYC Contract:", short_title]
+            title_parts = ["NYC Record:", short_title]
             if notice_type:
                 title_parts.append(f"({notice_type})")
             title = " ".join(title_parts)
@@ -386,18 +450,31 @@ class CheckbookNYCAdapter(HTTPAdapter):
             if selection_method:
                 description_parts.append(f"Method: {selection_method}")
                 
+            # Try multiple field name variations for date
+            date = (record.get('start_date') or 
+                   record.get('issue_date') or
+                   record.get('pub_dt') or
+                   record.get('check_date') or
+                   record.get('payment_date') or
+                   record.get('date'))
+            
+            # Try multiple field name variations for fiscal year
+            fiscal_year = (record.get('fiscal_year') or 
+                          record.get('fisc_yr') or
+                          record.get('year'))
+            
             return {
                 'id': f"checkbook_socrata_{request_id}",
                 'source': 'checkbook',
                 'type': 'contract',
                 'vendor': vendor_name,
                 'agency': agency_name,
-                'amount': contract_amount,
-                'amount_str': f"${contract_amount:,.2f}" if contract_amount > 0 else "$0",
+                'amount': amount,
+                'amount_str': f"${amount:,.2f}" if amount > 0 else "$0",
                 'title': title,
-                'date': record.get('start_date'),
+                'date': date,
                 'end_date': record.get('end_date'),
-                'fiscal_year': record.get('fiscal_year'),
+                'fiscal_year': fiscal_year,
                 'description': " | ".join(description_parts),
                 'pin': record.get('pin'),
                 'vendor_address': record.get('vendor_address'),
