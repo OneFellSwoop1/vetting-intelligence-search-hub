@@ -215,80 +215,49 @@ class CheckbookNYCAdapter(HTTPAdapter):
                 socrata_url = f"{self.socrata_base_url}/resource/{dataset_id}.json"
                 dataset_results = []
                 
-                # Strategy 1: Targeted field search (MOST ACCURATE - search only vendor/payee fields)
-                # This prevents false positives from meeting instructions mentioning "Microsoft Teams" etc.
+                # Strategy 1: Full-text search (RELIABLE - works across all datasets)
+                # Socrata's full-text search is more forgiving than field-specific queries
                 try:
-                    # Try different vendor field name variations
-                    vendor_fields = ['vendor_name', 'payee_name', 'prime_vendor']
-                    where_parts = [f"upper({field}) like upper('%{query.strip()}%')" for field in vendor_fields]
-                    where_clause = " OR ".join(where_parts)
-                    
-                    if year:
-                        where_clause = f"({where_clause}) AND (fiscal_year = '{year}' OR fisc_yr = '{year}')"
-                    
                     params = {
-                        '$where': where_clause,
+                        '$q': query.strip(),
                         '$limit': per_dataset_limit,
                     }
                     
-                    # Try to add date ordering if the field exists
-                    try:
-                        params['$order'] = 'start_date DESC'
-                    except:
-                        pass
+                    # Add year filter if specified
+                    if year:
+                        params['$where'] = f"(fiscal_year = '{year}' OR fisc_yr = '{year}' OR year = '{year}')"
                     
-                    logger.info(f"🔍 Searching dataset {dataset_id} with targeted vendor fields: '{query}'")
+                    # Try to add date ordering (gracefully fail if field doesn't exist)
+                    params['$order'] = 'start_date DESC'
+                    
+                    logger.info(f"🔍 Searching dataset {dataset_id} with full-text: '{query}'")
                     response = await client.get(socrata_url, params=params, timeout=10.0)
                     
                     if response.status_code == 200:
                         data = response.json()
                         if isinstance(data, list) and len(data) > 0:
-                            logger.info(f"✅ Dataset {dataset_id} targeted search returned {len(data)} records")
+                            logger.info(f"✅ Dataset {dataset_id} returned {len(data)} records")
                             for item in data:
                                 normalized = self._normalize_socrata_record(item)
                                 # Validate that the vendor name actually matches (not just in meeting instructions)
                                 if normalized and self._validate_vendor_match(normalized, query):
                                     dataset_results.append(normalized)
                             logger.info(f"✅ After validation: {len(dataset_results)} relevant records")
-                except Exception as e:
-                    logger.debug(f"Targeted search on {dataset_id} failed: {e}")
-                
-                # Strategy 2: Full-text search as fallback (with strict validation)
-                # Only use if targeted search didn't return enough results
-                if len(dataset_results) < per_dataset_limit // 2:
-                    try:
-                        params = {
-                            '$q': query.strip(),
-                            '$limit': per_dataset_limit - len(dataset_results),
-                        }
-                        
-                        # Try to add date ordering if the field exists
-                        try:
-                            params['$order'] = 'start_date DESC'
-                        except:
-                            pass
-                        
-                        if year:
-                            params['$where'] = f"fiscal_year = '{year}' OR fisc_yr = '{year}'"
-                        
-                        logger.info(f"🔍 Fallback: full-text search on {dataset_id}")
+                    elif response.status_code == 400:
+                        # Try without date ordering if it fails
+                        logger.debug(f"Dataset {dataset_id} doesn't support ordering, retrying without it")
+                        params.pop('$order', None)
                         response = await client.get(socrata_url, params=params, timeout=10.0)
-                        
                         if response.status_code == 200:
                             data = response.json()
                             if isinstance(data, list) and len(data) > 0:
-                                logger.info(f"✅ Dataset {dataset_id} full-text returned {len(data)} records")
-                                validated_count = 0
                                 for item in data:
                                     normalized = self._normalize_socrata_record(item)
-                                    # STRICT VALIDATION: Only add if vendor name actually matches
-                                    if normalized and normalized.get('id') not in [r.get('id') for r in dataset_results]:
-                                        if self._validate_vendor_match(normalized, query):
-                                            dataset_results.append(normalized)
-                                            validated_count += 1
-                                logger.info(f"✅ After validation: {validated_count}/{len(data)} records were relevant")
-                    except Exception as e:
-                        logger.debug(f"Full-text search on {dataset_id} failed: {e}")
+                                    if normalized and self._validate_vendor_match(normalized, query):
+                                        dataset_results.append(normalized)
+                except Exception as e:
+                    logger.debug(f"Search on {dataset_id} failed: {e}")
+                
                 
                 # Add dataset results to overall results
                 all_results.extend(dataset_results)
