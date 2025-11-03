@@ -100,13 +100,13 @@ class NYSEthicsAdapter:
         """Robust search with reasonable timeouts for real-time data"""
         results = []
         
-        # FIXED: Increased timeouts for reliable real-time data access
-        # Use more reasonable timeouts to ensure we get actual data
-        primary_dataset = ("registration", "se5j-cmbb", 15)  # 15 seconds for reliable results
-        secondary_dataset = ("bi_monthly", "t9kf-dqbc", 20)  # 20 seconds for comprehensive data
+        # OPTIMIZED: Reduced timeouts for faster searches
+        # Most searches complete quickly, these are fallback limits
+        primary_dataset = ("registration", "se5j-cmbb", 8)  # 8 seconds (was 15)
+        secondary_dataset = ("bi_monthly", "t9kf-dqbc", 10)  # 10 seconds (was 20)
         
-        # Use a single session with optimized settings but reasonable timeouts
-        timeout = aiohttp.ClientTimeout(total=45, connect=5, sock_read=15)
+        # Use a single session with aggressive timeouts for speed
+        timeout = aiohttp.ClientTimeout(total=20, connect=3, sock_read=8)  # 20s total (was 45s)
         connector = aiohttp.TCPConnector(limit=5, ttl_dns_cache=300)
         
         async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
@@ -117,16 +117,19 @@ class NYSEthicsAdapter:
                     session, query, year, dataset_name, dataset_id, dataset_timeout
                 )
                 
-                # Always try secondary dataset for comprehensive results
-                try:
-                    dataset_name, dataset_id, dataset_timeout = secondary_dataset
-                    secondary_results = await self._search_single_dataset(
-                        session, query, year, dataset_name, dataset_id, dataset_timeout
-                    )
-                    if secondary_results:
-                        results.extend(secondary_results)
-                except Exception as e:
-                    logger.warning(f"Secondary dataset search failed: {e}")
+                # Only try secondary dataset if primary had few results
+                if len(results) < 10:  # Only search secondary if we need more results
+                    try:
+                        dataset_name, dataset_id, dataset_timeout = secondary_dataset
+                        secondary_results = await self._search_single_dataset(
+                            session, query, year, dataset_name, dataset_id, dataset_timeout
+                        )
+                        if secondary_results:
+                            results.extend(secondary_results)
+                    except Exception as e:
+                        logger.warning(f"Secondary dataset search failed: {e}")
+                else:
+                    logger.info(f"Skipping secondary dataset, already have {len(results)} results")
                         
             except Exception as e:
                 logger.warning(f"NY State search failed: {e}")
