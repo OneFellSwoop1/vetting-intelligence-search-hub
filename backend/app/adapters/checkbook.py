@@ -102,17 +102,10 @@ class CheckbookNYCAdapter(HTTPAdapter):
                 if len(all_results) >= search_limit:
                     break
             
-            # Still try CheckbookNYC API as backup (in case it becomes available)
-            if len(all_results) < search_limit // 2:
-                logger.info(f"🔄 Supplementing with CheckbookNYC API attempts")
-                for q in variations[:2]:  # Limit attempts since API is likely blocked
-                    per_var_limit = max(5, (search_limit - len(all_results)) // 2)
-                    contracts = await self._search_contracts(client, q, per_var_limit // 2, year)
-                    spending = await self._search_spending(client, q, per_var_limit // 2, year)
-                    all_results.extend(contracts)
-                    all_results.extend(spending)
-                    if len(all_results) >= search_limit:
-                        break
+            # DISABLED: CheckbookNYC API is blocked by anti-bot services (Imperva/Cloudflare)
+            # This was causing 40+ second delays waiting for failed API calls to timeout
+            # Using ONLY Socrata API which is fast and reliable
+            logger.info(f"✅ Skipping CheckbookNYC API (known to be blocked) - using Socrata only")
         
         # Remove duplicates and sort by date (most recent first)
         unique_results = self._deduplicate_results(all_results)
@@ -222,11 +215,20 @@ class CheckbookNYCAdapter(HTTPAdapter):
                 socrata_url = f"{self.socrata_base_url}/resource/{dataset_id}.json"
                 dataset_results = []
                 
-                # Strategy 1: Full-text search (most comprehensive)
+                # Strategy 1: Targeted field search (MOST ACCURATE - search only vendor/payee fields)
+                # This prevents false positives from meeting instructions mentioning "Microsoft Teams" etc.
                 try:
+                    # Try different vendor field name variations
+                    vendor_fields = ['vendor_name', 'payee_name', 'prime_vendor']
+                    where_parts = [f"upper({field}) like upper('%{query.strip()}%')" for field in vendor_fields]
+                    where_clause = " OR ".join(where_parts)
+                    
+                    if year:
+                        where_clause = f"({where_clause}) AND (fiscal_year = '{year}' OR fisc_yr = '{year}')"
+                    
                     params = {
-                        '$q': query.strip(),
-                        '$limit': per_dataset_limit // 2,
+                        '$where': where_clause,
+                        '$limit': per_dataset_limit,
                     }
                     
                     # Try to add date ordering if the field exists
@@ -235,52 +237,58 @@ class CheckbookNYCAdapter(HTTPAdapter):
                     except:
                         pass
                     
-                    if year:
-                        params['$where'] = f"fiscal_year = '{year}' OR fisc_yr = '{year}'"
-                    
-                    logger.info(f"🔍 Searching dataset {dataset_id} with full-text: '{query}'")
+                    logger.info(f"🔍 Searching dataset {dataset_id} with targeted vendor fields: '{query}'")
                     response = await client.get(socrata_url, params=params, timeout=10.0)
                     
                     if response.status_code == 200:
                         data = response.json()
                         if isinstance(data, list) and len(data) > 0:
-                            logger.info(f"✅ Dataset {dataset_id} full-text returned {len(data)} records")
+                            logger.info(f"✅ Dataset {dataset_id} targeted search returned {len(data)} records")
                             for item in data:
                                 normalized = self._normalize_socrata_record(item)
-                                if normalized:
+                                # Validate that the vendor name actually matches (not just in meeting instructions)
+                                if normalized and self._validate_vendor_match(normalized, query):
                                     dataset_results.append(normalized)
+                            logger.info(f"✅ After validation: {len(dataset_results)} relevant records")
                 except Exception as e:
-                    logger.debug(f"Full-text search on {dataset_id} failed: {e}")
+                    logger.debug(f"Targeted search on {dataset_id} failed: {e}")
                 
-                # Strategy 2: Targeted field search (try common vendor field names)
+                # Strategy 2: Full-text search as fallback (with strict validation)
+                # Only use if targeted search didn't return enough results
                 if len(dataset_results) < per_dataset_limit // 2:
                     try:
-                        # Try different vendor field name variations
-                        vendor_fields = ['vendor_name', 'payee_name', 'agy_nm']
-                        where_parts = [f"upper({field}) like upper('%{query.strip()}%')" for field in vendor_fields]
-                        where_clause = " OR ".join(where_parts)
-                        
-                        if year:
-                            where_clause = f"({where_clause}) AND (fiscal_year = '{year}' OR fisc_yr = '{year}')"
-                        
                         params = {
-                            '$where': where_clause,
+                            '$q': query.strip(),
                             '$limit': per_dataset_limit - len(dataset_results),
                         }
                         
-                        logger.info(f"🔍 Searching dataset {dataset_id} with targeted fields")
+                        # Try to add date ordering if the field exists
+                        try:
+                            params['$order'] = 'start_date DESC'
+                        except:
+                            pass
+                        
+                        if year:
+                            params['$where'] = f"fiscal_year = '{year}' OR fisc_yr = '{year}'"
+                        
+                        logger.info(f"🔍 Fallback: full-text search on {dataset_id}")
                         response = await client.get(socrata_url, params=params, timeout=10.0)
                         
                         if response.status_code == 200:
                             data = response.json()
                             if isinstance(data, list) and len(data) > 0:
-                                logger.info(f"✅ Dataset {dataset_id} targeted returned {len(data)} records")
+                                logger.info(f"✅ Dataset {dataset_id} full-text returned {len(data)} records")
+                                validated_count = 0
                                 for item in data:
                                     normalized = self._normalize_socrata_record(item)
+                                    # STRICT VALIDATION: Only add if vendor name actually matches
                                     if normalized and normalized.get('id') not in [r.get('id') for r in dataset_results]:
-                                        dataset_results.append(normalized)
+                                        if self._validate_vendor_match(normalized, query):
+                                            dataset_results.append(normalized)
+                                            validated_count += 1
+                                logger.info(f"✅ After validation: {validated_count}/{len(data)} records were relevant")
                     except Exception as e:
-                        logger.debug(f"Targeted search on {dataset_id} failed: {e}")
+                        logger.debug(f"Full-text search on {dataset_id} failed: {e}")
                 
                 # Add dataset results to overall results
                 all_results.extend(dataset_results)
@@ -388,6 +396,35 @@ class CheckbookNYCAdapter(HTTPAdapter):
             logger.error(f"Error normalizing spending record: {e}")
             return None
 
+    def _validate_vendor_match(self, normalized_result: Dict[str, Any], query: str) -> bool:
+        """
+        Validate that the query actually appears in the vendor/payee name,
+        not just in meeting instructions, product descriptions, or other irrelevant fields.
+        
+        This prevents false positives like:
+        - "Microsoft Teams" in meeting instructions (plumbing contracts)
+        - "Microsoft Surface Tablets" in product descriptions (reseller contracts)
+        - "Microsoft Office" in software lists (IT service contracts)
+        
+        Returns True ONLY if the vendor name itself matches the query.
+        """
+        vendor = normalized_result.get('vendor', '').lower()
+        query_lower = query.lower()
+        
+        # PRIMARY CHECK: Query must appear in vendor name
+        if query_lower in vendor:
+            return True
+        
+        # SECONDARY CHECK: Use similarity for fuzzy matching vendor names
+        # (handles "Microsoft Corp" vs "Microsoft Corporation", etc.)
+        similarity_score = similarity(query, vendor)
+        if similarity_score >= 0.7:  # Increased threshold for stricter matching
+            return True
+        
+        # REJECT: If query only appears in title/description but not vendor
+        # This filters out "Microsoft Surface Tablets" sold by resellers
+        return False
+    
     def _normalize_socrata_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Normalize a record from Socrata dataset with flexible field mapping for multiple dataset schemas."""
         try:
