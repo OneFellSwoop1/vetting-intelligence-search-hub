@@ -425,26 +425,19 @@ class CheckbookNYCAdapter(HTTPAdapter):
         
         if len(query_words) >= 2:
             # For multi-word queries, require ALL significant words to appear in vendor name
+            # NO EXCEPTIONS - this prevents "Priority Healthcare" from matching "United Healthcare"
             matches = sum(1 for word in query_words if word in vendor)
             required_matches = len(query_words)
             
-            logger.debug(f"Multi-word match: {matches}/{required_matches} words matched for '{query}' in '{vendor}'")
-            
-            # Strict matching: ALL words must appear
+            # STRICT: ALL words must appear, no flexibility
             if matches >= required_matches:
                 return True
-            
-            # Allow flexibility only if very close (missing 1 word) AND high similarity
-            if matches == required_matches - 1:
-                similarity_score = similarity(query, vendor)
-                if similarity_score >= 0.75:
-                    logger.debug(f"Accepted with {matches}/{required_matches} words + high similarity ({similarity_score:.2f})")
-                    return True
+            else:
+                return False
         else:
             # Single-word query: use higher similarity threshold
             similarity_score = similarity(query, vendor)
             if similarity_score >= 0.7:
-                logger.debug(f"Single-word match: similarity {similarity_score:.2f} >= 0.7")
                 return True
         
         # REJECT: Vendor doesn't adequately match query
