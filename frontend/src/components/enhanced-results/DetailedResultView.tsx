@@ -491,6 +491,59 @@ const DetailedResultView: React.FC<DetailedResultViewProps> = ({
             {expandedSections.technical && (
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-1 gap-4">
+                  {/* Contract Identifiers (if available from CheckbookNYC) */}
+                  {result.source === 'checkbook' && result.raw_data && (
+                    result.raw_data.request_id || result.raw_data.pin || result.raw_data.document_id || result.raw_data.contract_id
+                  ) && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3">Contract Identifiers</h4>
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <dl className="space-y-2">
+                          {result.raw_data.request_id && (
+                            <div className="flex gap-4">
+                              <dt className="text-sm font-medium text-blue-700 min-w-32 flex-shrink-0">
+                                Request ID:
+                              </dt>
+                              <dd className="text-sm text-blue-900 break-words flex-1 font-mono">
+                                {result.raw_data.request_id}
+                              </dd>
+                            </div>
+                          )}
+                          {result.raw_data.pin && (
+                            <div className="flex gap-4">
+                              <dt className="text-sm font-medium text-blue-700 min-w-32 flex-shrink-0">
+                                Contract PIN:
+                              </dt>
+                              <dd className="text-sm text-blue-900 break-words flex-1 font-mono">
+                                {result.raw_data.pin}
+                              </dd>
+                            </div>
+                          )}
+                          {result.raw_data.document_id && (
+                            <div className="flex gap-4">
+                              <dt className="text-sm font-medium text-blue-700 min-w-32 flex-shrink-0">
+                                Document ID:
+                              </dt>
+                              <dd className="text-sm text-blue-900 break-words flex-1 font-mono">
+                                {result.raw_data.document_id}
+                              </dd>
+                            </div>
+                          )}
+                          {result.raw_data.contract_id && !result.raw_data.request_id && (
+                            <div className="flex gap-4">
+                              <dt className="text-sm font-medium text-blue-700 min-w-32 flex-shrink-0">
+                                Contract ID:
+                              </dt>
+                              <dd className="text-sm text-blue-900 break-words flex-1 font-mono">
+                                {result.raw_data.contract_id}
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div>
                     <h4 className="font-semibold text-gray-900 mb-3">All Available Fields</h4>
                     <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-auto">
