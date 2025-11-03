@@ -163,3 +163,27 @@ safety_scan_report.json
 test_server.py
 test_*.py
 !tests/ # Force CI run
+
+# Temporary/Internal Documentation (DO NOT COMMIT)
+# Keep only essential docs: README.md, HOW_TO_START.md, CHANGELOG.md, CONTRIBUTING.md
+*_STATUS.md
+*_SUMMARY.md
+*_IMPLEMENTATION.md
+*_INTEGRATION.md
+*_VISUAL_GUIDE.md
+*_DEPLOYMENT.md
+*_TEST*.md
+*_OPTIMIZATION*.md
+*_FIXES.md
+*_RESOLVED.md
+QUICK_START*.md
+STARTUP_*.md
+PROJECT_STATUS.md
+OFFICE_*.md
+LANDING_PAGE_*.md
+LOGO_*.md
+PERFORMANCE_*.md
+
+# Exception: Keep important technical documentation
+!CHECKBOOKNYC_*.md
+!backend/ARCHITECTURE.md
