@@ -398,31 +398,56 @@ class CheckbookNYCAdapter(HTTPAdapter):
 
     def _validate_vendor_match(self, normalized_result: Dict[str, Any], query: str) -> bool:
         """
-        Validate that the query actually appears in the vendor/payee name,
-        not just in meeting instructions, product descriptions, or other irrelevant fields.
+        Validate that the query actually appears in the vendor/payee name.
         
-        This prevents false positives like:
-        - "Microsoft Teams" in meeting instructions (plumbing contracts)
-        - "Microsoft Surface Tablets" in product descriptions (reseller contracts)
-        - "Microsoft Office" in software lists (IT service contracts)
+        For multi-word queries (e.g., "United Healthcare"), ALL significant words 
+        must appear in the vendor name to prevent false positives like:
+        - "United Activities" matching "United Healthcare" (only shares "United")
+        - "Michiana Healthcare" matching "United Healthcare" (only shares "Healthcare")
         
-        Returns True ONLY if the vendor name itself matches the query.
+        Returns True ONLY if the vendor name matches the query appropriately.
         """
         vendor = normalized_result.get('vendor', '').lower()
         query_lower = query.lower()
         
-        # PRIMARY CHECK: Query must appear in vendor name
+        # Skip validation if vendor is "Unknown"
+        if 'unknown' in vendor:
+            return False
+        
+        # PRIMARY CHECK: Direct substring match (highest confidence)
         if query_lower in vendor:
             return True
         
-        # SECONDARY CHECK: Use similarity for fuzzy matching vendor names
-        # (handles "Microsoft Corp" vs "Microsoft Corporation", etc.)
-        similarity_score = similarity(query, vendor)
-        if similarity_score >= 0.7:  # Increased threshold for stricter matching
-            return True
+        # MULTI-WORD QUERY VALIDATION
+        # Split query into significant words (ignore short words like "of", "the", "inc", etc.)
+        stop_words = {'of', 'the', 'and', 'for', 'inc', 'llc', 'corp', 'co', 'ltd'}
+        query_words = [w for w in query_lower.split() if len(w) > 2 and w not in stop_words]
         
-        # REJECT: If query only appears in title/description but not vendor
-        # This filters out "Microsoft Surface Tablets" sold by resellers
+        if len(query_words) >= 2:
+            # For multi-word queries, require ALL significant words to appear in vendor name
+            matches = sum(1 for word in query_words if word in vendor)
+            required_matches = len(query_words)
+            
+            logger.debug(f"Multi-word match: {matches}/{required_matches} words matched for '{query}' in '{vendor}'")
+            
+            # Strict matching: ALL words must appear
+            if matches >= required_matches:
+                return True
+            
+            # Allow flexibility only if very close (missing 1 word) AND high similarity
+            if matches == required_matches - 1:
+                similarity_score = similarity(query, vendor)
+                if similarity_score >= 0.75:
+                    logger.debug(f"Accepted with {matches}/{required_matches} words + high similarity ({similarity_score:.2f})")
+                    return True
+        else:
+            # Single-word query: use higher similarity threshold
+            similarity_score = similarity(query, vendor)
+            if similarity_score >= 0.7:
+                logger.debug(f"Single-word match: similarity {similarity_score:.2f} >= 0.7")
+                return True
+        
+        # REJECT: Vendor doesn't adequately match query
         return False
     
     def _normalize_socrata_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:

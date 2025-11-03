@@ -1329,7 +1329,7 @@ export default function VettingIntelligenceHub() {
                 </div>
                 <CheckbookNYCStyleResults 
                   results={displayResults.filter(r => r.source === 'checkbook').map(result => ({
-                    id: `${result.source}-${Math.random()}`,
+                    id: result.id || `${result.source}-${(result.vendor || '').replace(/\s+/g, '-')}-${result.amount || 0}`,
                     source: result.source,
                     title: result.title,
                     vendor: result.vendor,
@@ -1374,7 +1374,7 @@ export default function VettingIntelligenceHub() {
                 </div>
                 <NYCLobbyistStyleResults 
                   results={displayResults.filter(r => r.source === 'senate_lda').map(result => ({
-                    id: `${result.source}-${Math.random()}`,
+                    id: result.id || `${result.source}-${(result.vendor || '').replace(/\s+/g, '-')}-${result.amount || 0}`,
                     source: result.source,
                     title: result.title,
                     vendor: result.vendor,
@@ -1416,7 +1416,7 @@ export default function VettingIntelligenceHub() {
                 </div>
                 <NYCLobbyistStyleResults 
                   results={displayResults.filter(r => r.source === 'nyc_lobbyist' || r.source === 'nyc_lobbyist_year_header').map(result => ({
-                    id: `${result.source}-${Math.random()}`,
+                    id: result.id || `${result.source}-${(result.vendor || '').replace(/\s+/g, '-')}-${result.amount || 0}`,
                     source: result.source,
                     title: result.title,
                     vendor: result.vendor,
@@ -1458,7 +1458,7 @@ export default function VettingIntelligenceHub() {
                 </div>
                 <FECStyleResults 
                   results={displayResults.filter(r => r.source === 'fec').map(result => ({
-                    id: `${result.source}-${Math.random()}`,
+                    id: result.id || `${result.source}-${(result.vendor || '').replace(/\s+/g, '-')}-${result.amount || 0}`,
                     source: result.source,
                     title: result.title,
                     vendor: result.vendor,
@@ -1514,7 +1514,7 @@ export default function VettingIntelligenceHub() {
                 </div>
                 <NYCLobbyistStyleResults 
                   results={displayResults.filter(r => r.source === 'nys_ethics').map(result => ({
-                    id: `${result.source}-${Math.random()}`,
+                    id: result.id || `${result.source}-${(result.vendor || '').replace(/\s+/g, '-')}-${result.amount || 0}`,
                     source: result.source,
                     title: result.title,
                     vendor: result.vendor,
