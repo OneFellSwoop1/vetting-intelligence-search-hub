@@ -1,0 +1,81 @@
+# Robots.txt for POISSON AI® Vetting Intelligence Search Hub
+# https://poissonai.com
+
+# Global rules for all user agents
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+Disallow: /*.json$
+Disallow: /*?*
+
+# Allow specific directories
+Allow: /images/
+Allow: /app
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+
+# Crawl-delay for polite crawlers (optional)
+# Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://poissonai.com/sitemap.xml
+
+# Google-specific rules
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+
+# Allow Google Image Bot
+User-agent: Googlebot-Image
+Allow: /images/
+
+# Bing-specific rules
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+Disallow: /_next/
+Disallow: /admin/
+
+# Block bad bots (optional - uncomment if needed)
+# User-agent: AhrefsBot
+# Disallow: /
+
+# User-agent: SemrushBot
+# Disallow: /
+
+# User-agent: DotBot
+# Disallow: /
+
+# Allow all good search engines
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+# Social media crawlers
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+# Archive.org crawler
+User-agent: ia_archiver
+Allow: /
+
+# Last updated: January 2026

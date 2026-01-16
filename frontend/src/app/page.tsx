@@ -93,15 +93,17 @@ export default function LandingPage() {
           </div>
         </motion.nav>
 
-        {/* Hero Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        {/* Hero Section - Reduced padding for more compact feel */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            {/* Floating decorative icons */}
+            {/* Floating decorative icons - Application relevant */}
+            
+            {/* Top Left - Shield (Security/Compliance) */}
             <motion.div
               animate={{ 
                 y: [0, -10, 0],
@@ -117,6 +119,7 @@ export default function LandingPage() {
               <Shield className="w-8 h-8 text-white" />
             </motion.div>
             
+            {/* Top Right - Sparkles (AI Intelligence) */}
             <motion.div
               animate={{ 
                 y: [0, 10, 0],
@@ -133,55 +136,157 @@ export default function LandingPage() {
               <Sparkles className="w-6 h-6 text-white" />
             </motion.div>
 
-            {/* Main Hero Content */}
-            <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-12 md:p-16 border border-white/20 shadow-2xl max-w-5xl mx-auto">
+            {/* Middle Left - FileText (Contracts/Documents) */}
+            <motion.div
+              animate={{ 
+                y: [0, -8, 0],
+                rotate: [0, 3, 0]
+              }}
+              transition={{ 
+                duration: 3.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 0.5
+              }}
+              className="absolute top-1/2 left-12 w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-2xl hidden xl:flex"
+            >
+              <FileText className="w-7 h-7 text-white" />
+            </motion.div>
+
+            {/* Middle Right - TrendingUp (Analytics) */}
+            <motion.div
+              animate={{ 
+                y: [0, 8, 0],
+                rotate: [0, -3, 0]
+              }}
+              transition={{ 
+                duration: 3.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 1.5
+              }}
+              className="absolute top-1/3 right-16 w-14 h-14 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-2xl hidden xl:flex"
+            >
+              <TrendingUp className="w-7 h-7 text-white" />
+            </motion.div>
+
+            {/* Bottom Left - DollarSign (Financial Data) */}
+            <motion.div
+              animate={{ 
+                y: [0, 12, 0],
+                rotate: [0, 6, 0]
+              }}
+              transition={{ 
+                duration: 4.2,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 2
+              }}
+              className="absolute bottom-32 left-24 w-12 h-12 bg-gradient-to-r from-green-500 to-teal-500 rounded-xl flex items-center justify-center shadow-2xl hidden lg:flex"
+            >
+              <DollarSign className="w-6 h-6 text-white" />
+            </motion.div>
+
+            {/* Bottom Right - Building (Government) */}
+            <motion.div
+              animate={{ 
+                y: [0, -12, 0],
+                rotate: [0, -4, 0]
+              }}
+              transition={{ 
+                duration: 3.6,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 0.8
+              }}
+              className="absolute bottom-28 right-20 w-14 h-14 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-2xl hidden lg:flex"
+            >
+              <Building className="w-7 h-7 text-white" />
+            </motion.div>
+
+            {/* Upper Middle Left - Search (Discovery) */}
+            <motion.div
+              animate={{ 
+                y: [0, -6, 0],
+                rotate: [0, 4, 0]
+              }}
+              transition={{ 
+                duration: 3.2,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 1.2
+              }}
+              className="absolute top-40 left-40 w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center shadow-2xl hidden xl:flex"
+            >
+              <Search className="w-5 h-5 text-white" />
+            </motion.div>
+
+            {/* Lower Middle Right - BarChart (Data Visualization) */}
+            <motion.div
+              animate={{ 
+                y: [0, 9, 0],
+                rotate: [0, -6, 0]
+              }}
+              transition={{ 
+                duration: 4.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: 2.5
+              }}
+              className="absolute bottom-40 right-36 w-11 h-11 bg-gradient-to-r from-pink-500 to-rose-500 rounded-lg flex items-center justify-center shadow-2xl hidden xl:flex"
+            >
+              <BarChart3 className="w-6 h-6 text-white" />
+            </motion.div>
+
+            {/* Main Hero Content - More compact padding */}
+            <div className="backdrop-blur-xl bg-white/10 rounded-3xl p-8 md:p-10 border border-white/20 shadow-2xl max-w-5xl mx-auto">
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="flex flex-col items-center"
               >
-                {/* Prominent Logo Display */}
+                {/* Prominent Logo Display - Smaller for compactness */}
                 <motion.div
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.8, delay: 0.3 }}
-                  className="relative mb-8 group"
+                  className="relative mb-6 group"
                 >
                   {/* Enhanced purple glow effect */}
-                  <div className="absolute -inset-8 bg-gradient-to-r from-purple-600 via-violet-600 to-pink-600 rounded-full blur-3xl opacity-25 animate-pulse group-hover:opacity-35 transition-opacity"></div>
+                  <div className="absolute -inset-6 bg-gradient-to-r from-purple-600 via-violet-600 to-pink-600 rounded-full blur-3xl opacity-25 animate-pulse group-hover:opacity-35 transition-opacity"></div>
                   
-                  {/* Logo with rounded corners and styling */}
+                  {/* Logo with rounded corners and styling - Reduced size */}
                   <div className="relative z-10">
                     <Image 
                       src="/images/poissonai_logo.png"
                       alt="POISSON AI Logo"
-                      width={350}
-                      height={350}
+                      width={250}
+                      height={250}
                       priority
-                      className="relative w-[200px] h-[200px] md:w-[280px] md:h-[280px] lg:w-[350px] lg:h-[350px] rounded-3xl shadow-2xl shadow-purple-500/50 border border-purple-400/20 backdrop-blur-sm"
+                      className="relative w-[160px] h-[160px] md:w-[200px] md:h-[200px] lg:w-[250px] lg:h-[250px] rounded-3xl shadow-2xl shadow-purple-500/50 border border-purple-400/20 backdrop-blur-sm"
                     />
                   </div>
                 </motion.div>
 
-                <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-4 text-center">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-3 text-center">
                   <span className="bg-gradient-to-r from-white via-purple-100 to-violet-100 bg-clip-text text-transparent">
                     Vetting Intelligence Search Hub
                   </span>
                 </h1>
                 
-                <p className="text-xl md:text-2xl text-purple-200 max-w-3xl mx-auto mb-8 leading-relaxed text-center">
+                <p className="text-lg md:text-xl text-purple-200 max-w-3xl mx-auto mb-4 leading-relaxed text-center">
                   Enterprise Government Transparency & Due Diligence Platform
                 </p>
 
-                <p className="text-lg text-gray-300 max-w-3xl mx-auto mb-10 leading-relaxed">
+                <p className="text-base md:text-lg text-gray-300 max-w-3xl mx-auto mb-6 leading-relaxed">
                   Uncover hidden connections and insights across government transparency data. 
                   Search lobbying records, campaign finance, federal spending, and public contracts 
                   with AI-powered intelligence. Replace $10,000+/year tools with one unified platform.
                 </p>
 
                 {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-10">
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-6">
                   <Link href="/app">
                     <motion.button
                       whileHover={{ scale: 1.05, y: -2 }}
@@ -228,8 +333,42 @@ export default function LandingPage() {
           </motion.div>
         </section>
 
-        {/* Data Sources Pills */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Live Data Ticker - Fills space with motion */}
+        <section className="relative overflow-hidden py-6 bg-gradient-to-r from-purple-900/20 via-violet-900/20 to-purple-900/20 backdrop-blur-sm">
+          <motion.div 
+            animate={{ x: [-1000, 0] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            className="flex gap-12 whitespace-nowrap"
+          >
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex gap-12 items-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-gray-300 text-sm font-medium">15M+ Records Indexed</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                  <span className="text-gray-300 text-sm font-medium">Real-Time Data Feeds</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '1s'}}></div>
+                  <span className="text-gray-300 text-sm font-medium">AI-Powered Analysis</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse" style={{animationDelay: '1.5s'}}></div>
+                  <span className="text-gray-300 text-sm font-medium">99.9% Uptime</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" style={{animationDelay: '2s'}}></div>
+                  <span className="text-gray-300 text-sm font-medium">SOC 2 Ready</span>
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        </section>
+
+        {/* Data Sources Pills - Closer to hero */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -259,13 +398,13 @@ export default function LandingPage() {
           </motion.div>
         </section>
 
-        {/* Features Section */}
-        <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        {/* Features Section - Tighter spacing */}
+        <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-16"
+            className="text-center mb-12"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Enterprise-Grade Intelligence
@@ -562,18 +701,16 @@ export default function LandingPage() {
                 <ul className="space-y-2 text-sm text-gray-400">
                   <li><Link href="/app" className="hover:text-white transition-colors">Search</Link></li>
                   <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Data Sources</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
+                  <li><a href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">API Documentation</a></li>
                 </ul>
               </div>
               
               <div>
                 <h4 className="text-white font-semibold mb-4">Company</h4>
                 <ul className="space-y-2 text-sm text-gray-400">
-                  <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                  <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
+                  <li><Link href="/contact" className="hover:text-white transition-colors">Contact</Link></li>
+                  <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+                  <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
                 </ul>
               </div>
             </div>
