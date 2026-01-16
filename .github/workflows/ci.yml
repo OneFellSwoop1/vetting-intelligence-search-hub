@@ -38,6 +38,20 @@ jobs:
       run: |
         timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
     
+    - name: Create minimal environment.env for Pydantic
+      run: |
+        cd backend
+        cat > environment.env << 'EOF'
+        # Minimal CI environment file for Pydantic Settings
+        JWT_SECRET_KEY=test_jwt_secret_key_for_ci_testing_min_32_chars_1234567890abcdefghij
+        SECRET_KEY=test_secret_key_for_ci_1234567890
+        CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+        ENVIRONMENT=test
+        LOG_LEVEL=INFO
+        REDIS_URL=redis://localhost:6379/0
+        EOF
+        echo "✅ Created environment.env file"
+    
     - name: Check imports and basic functionality
       run: |
         cd backend
@@ -79,6 +93,16 @@ jobs:
       run: |
         cd frontend
         npm ci
+    
+    - name: Create .env.local for Next.js
+      run: |
+        cd frontend
+        cat > .env.local << 'EOF'
+        NODE_ENV=development
+        NEXT_PUBLIC_SITE_URL=https://poissonai.com
+        NEXT_PUBLIC_API_URL=http://localhost:8000
+        EOF
+        echo "✅ Created .env.local file"
     
     - name: Verify utils file exists
       run: |

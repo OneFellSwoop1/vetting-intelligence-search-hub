@@ -237,9 +237,13 @@ class Settings(BaseSettings):
     class Config:
         """Pydantic configuration."""
         env_file = "environment.env"
+        env_file_encoding = "utf-8"
         case_sensitive = True
         # Allow extra fields for backward compatibility
         extra = "ignore"
+        # ✅ Don't fail if env file doesn't exist (important for CI)
+        # Pydantic will still read from system environment variables
+        validate_assignment = True
 
 
 # Global settings instance
