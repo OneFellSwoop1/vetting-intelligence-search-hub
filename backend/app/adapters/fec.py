@@ -101,7 +101,8 @@ class FECAdapter(BaseAdapter):
         all_results = []
         
         try:
-            # Search multiple FEC endpoints in parallel
+            # ⚡ Search multiple FEC endpoints in PARALLEL
+            # FEC allows 1000 requests/hour, parallel execution is safe
             search_tasks = [
                 self._search_candidates(query, year),
                 self._search_committees(query, year),
@@ -109,17 +110,15 @@ class FECAdapter(BaseAdapter):
                 self._search_disbursements(query, year)
             ]
             
-            # Execute searches with rate limiting delays
-            results_lists = []
-            for task in search_tasks:
-                result = await task
-                results_lists.append(result)
-                # Add delay between API calls to respect rate limits
-                await asyncio.sleep(self.rate_limit_delay)
+            # Execute ALL searches simultaneously
+            results_lists = await asyncio.gather(*search_tasks, return_exceptions=True)
             
-            # Combine all results
+            # Combine all results (handling exceptions)
             for results in results_lists:
-                all_results.extend(results)
+                if isinstance(results, Exception):
+                    logger.warning(f"FEC sub-search failed: {results}")
+                elif isinstance(results, list):
+                    all_results.extend(results)
             
             # Use base class deduplication
             unique_results = self._deduplicate_results(
@@ -149,7 +148,7 @@ class FECAdapter(BaseAdapter):
             
             url = f"{self.base_url}{self.endpoints['candidates']}"
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:  # ⚡ Reduced from 30s to 8s
                 response = await client.get(url, params=params)
                 if response.status_code == 200:
                     data = response.json()
@@ -188,7 +187,7 @@ class FECAdapter(BaseAdapter):
             
             url = f"{self.base_url}{self.endpoints['committees']}"
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:  # ⚡ Reduced from 30s to 8s
                 response = await client.get(url, params=params)
                 if response.status_code == 200:
                     data = response.json()
@@ -227,7 +226,7 @@ class FECAdapter(BaseAdapter):
             
             url = f"{self.base_url}{self.endpoints['contributions']}"
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:  # ⚡ Reduced from 30s to 8s
                 response = await client.get(url, params=params)
                 if response.status_code == 200:
                     data = response.json()
@@ -266,7 +265,7 @@ class FECAdapter(BaseAdapter):
             
             url = f"{self.base_url}{self.endpoints['disbursements']}"
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:  # ⚡ Reduced from 30s to 8s
                 response = await client.get(url, params=params)
                 if response.status_code == 200:
                     data = response.json()
@@ -470,7 +469,7 @@ class FECAdapter(BaseAdapter):
             
             url = f"{self.base_url}{self.endpoints['candidate_totals'].format(candidate_id)}"
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:  # ⚡ Reduced from 30s to 8s
                 response = await client.get(url, params=params)
                 if response.status_code == 200:
                     data = response.json()

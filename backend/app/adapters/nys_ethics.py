@@ -100,13 +100,13 @@ class NYSEthicsAdapter:
         """Robust search with reasonable timeouts for real-time data"""
         results = []
         
-        # OPTIMIZED: Reduced timeouts for faster searches
+        # ⚡ OPTIMIZED: Reduced timeouts for faster searches
         # Most searches complete quickly, these are fallback limits
-        primary_dataset = ("registration", "se5j-cmbb", 8)  # 8 seconds (was 15)
-        secondary_dataset = ("bi_monthly", "t9kf-dqbc", 10)  # 10 seconds (was 20)
+        primary_dataset = ("registration", "se5j-cmbb", 5)  # 5 seconds (was 8)
+        secondary_dataset = ("bi_monthly", "t9kf-dqbc", 6)  # 6 seconds (was 10)
         
         # Use a single session with aggressive timeouts for speed
-        timeout = aiohttp.ClientTimeout(total=20, connect=3, sock_read=8)  # 20s total (was 45s)
+        timeout = aiohttp.ClientTimeout(total=12, connect=2, sock_read=5)  # ⚡ 12s total (was 20s)
         connector = aiohttp.TCPConnector(limit=5, ttl_dns_cache=300)
         
         async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
@@ -144,8 +144,8 @@ class NYSEthicsAdapter:
         logger.info(f"⚡ NY State real-time search for: '{query}'")
         
         try:
-            # Use moderate timeout for ultra-fast mode (balance speed vs reliability)
-            timeout = aiohttp.ClientTimeout(total=10, connect=3, sock_read=5)
+            # ⚡ Use aggressive timeout for ultra-fast mode
+            timeout = aiohttp.ClientTimeout(total=6, connect=2, sock_read=3)  # ⚡ Reduced from 10s to 6s
             connector = aiohttp.TCPConnector(limit=3, ttl_dns_cache=300)
             
             async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
