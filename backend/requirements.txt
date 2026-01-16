@@ -80,7 +80,7 @@ passlib[bcrypt]==1.7.4
 email-validator==2.1.1
 
 # Missing dependencies for enhanced features
-mammoth==1.7.2
+mammoth==1.8.0
 # Note: TensorFlow is large and optional - uncomment if needed
 # tensorflow>=2.15.0
 # spacy model download: python -m spacy download en_core_web_sm
