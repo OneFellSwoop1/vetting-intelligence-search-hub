@@ -2,6 +2,7 @@
 NYC Checkbook adapter for searching contract and spending data.
 Refactored to use BaseAdapter for standardized functionality.
 """
+import asyncio
 import httpx
 import logging
 import os
@@ -85,22 +86,17 @@ class CheckbookNYCAdapter(HTTPAdapter):
         """Execute the actual CheckbookNYC search."""
         all_results = []
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:  # ⚡ Reduced from 30s to 8s
             # Use default limit
             search_limit = 50
 
-            # UPDATED: Since CheckbookNYC API is blocked by anti-bot services,
-            # prioritize Socrata API which is working reliably
-            variations = generate_variations(query, limit=4)
+            # ⚡ OPTIMIZED: Search only the ORIGINAL query (no variations)
+            # Variations add 4x the API calls but don't significantly improve results
+            # Most companies are found by their primary name
+            logger.info(f"⚡ Using Socrata API with optimized single-query search")
             
-            # Try Socrata first (most reliable)
-            logger.info(f"🔍 Using Socrata API as primary source (CheckbookNYC API blocked)")
-            for q in variations:
-                per_var_limit = max(10, search_limit // max(1, len(variations)))
-                socrata_results = await self._search_socrata_enhanced(client, q, per_var_limit, year)
-                all_results.extend(socrata_results)
-                if len(all_results) >= search_limit:
-                    break
+            socrata_results = await self._search_socrata_enhanced(client, query, search_limit, year)
+            all_results.extend(socrata_results)
             
             # DISABLED: CheckbookNYC API is blocked by anti-bot services (Imperva/Cloudflare)
             # This was causing 40+ second delays waiting for failed API calls to timeout
@@ -204,70 +200,83 @@ class CheckbookNYCAdapter(HTTPAdapter):
             logger.error(f"❌ Spending search failed: {e}")
             return []
 
-    async def _search_socrata_enhanced(self, client: httpx.AsyncClient, query: str, limit: int, year: int = None) -> List[Dict[str, Any]]:
-        """Enhanced Socrata search using multiple datasets and search strategies."""
-        all_results = []
-        per_dataset_limit = max(10, limit // len(self.CHECKBOOK_DATASETS))
-        
-        # Search across multiple datasets for better coverage
-        for dataset_id in self.CHECKBOOK_DATASETS:
+    async def _search_single_dataset(self, client: httpx.AsyncClient, dataset_id: str, query: str, per_dataset_limit: int, year: int = None) -> List[Dict[str, Any]]:
+        """Search a single Socrata dataset (helper for parallel execution)."""
+        try:
+            socrata_url = f"{self.socrata_base_url}/resource/{dataset_id}.json"
+            dataset_results = []
+            
+            # Strategy 1: Full-text search (RELIABLE - works across all datasets)
+            # Socrata's full-text search is more forgiving than field-specific queries
             try:
-                socrata_url = f"{self.socrata_base_url}/resource/{dataset_id}.json"
-                dataset_results = []
+                params = {
+                    '$q': query.strip(),
+                    '$limit': per_dataset_limit,
+                }
                 
-                # Strategy 1: Full-text search (RELIABLE - works across all datasets)
-                # Socrata's full-text search is more forgiving than field-specific queries
-                try:
-                    params = {
-                        '$q': query.strip(),
-                        '$limit': per_dataset_limit,
-                    }
-                    
-                    # Add year filter if specified
-                    if year:
-                        params['$where'] = f"(fiscal_year = '{year}' OR fisc_yr = '{year}' OR year = '{year}')"
-                    
-                    # Try to add date ordering (gracefully fail if field doesn't exist)
-                    params['$order'] = 'start_date DESC'
-                    
-                    logger.info(f"🔍 Searching dataset {dataset_id} with full-text: '{query}'")
-                    response = await client.get(socrata_url, params=params, timeout=10.0)
-                    
+                # Add year filter if specified
+                if year:
+                    params['$where'] = f"(fiscal_year = '{year}' OR fisc_yr = '{year}' OR year = '{year}')"
+                
+                # Try to add date ordering (gracefully fail if field doesn't exist)
+                params['$order'] = 'start_date DESC'
+                
+                logger.info(f"🔍 Searching dataset {dataset_id} with full-text: '{query}'")
+                response = await client.get(socrata_url, params=params, timeout=5.0)  # ⚡ Reduced from 10s to 5s
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if isinstance(data, list) and len(data) > 0:
+                        logger.info(f"✅ Dataset {dataset_id} returned {len(data)} records")
+                        for item in data:
+                            normalized = self._normalize_socrata_record(item)
+                            # Validate that the vendor name actually matches (not just in meeting instructions)
+                            if normalized and self._validate_vendor_match(normalized, query):
+                                dataset_results.append(normalized)
+                        logger.info(f"✅ After validation: {len(dataset_results)} relevant records")
+                elif response.status_code == 400:
+                    # Try without date ordering if it fails
+                    logger.debug(f"Dataset {dataset_id} doesn't support ordering, retrying without it")
+                    params.pop('$order', None)
+                    response = await client.get(socrata_url, params=params, timeout=5.0)  # ⚡ Reduced from 10s to 5s
                     if response.status_code == 200:
                         data = response.json()
                         if isinstance(data, list) and len(data) > 0:
-                            logger.info(f"✅ Dataset {dataset_id} returned {len(data)} records")
                             for item in data:
                                 normalized = self._normalize_socrata_record(item)
-                                # Validate that the vendor name actually matches (not just in meeting instructions)
                                 if normalized and self._validate_vendor_match(normalized, query):
                                     dataset_results.append(normalized)
-                            logger.info(f"✅ After validation: {len(dataset_results)} relevant records")
-                    elif response.status_code == 400:
-                        # Try without date ordering if it fails
-                        logger.debug(f"Dataset {dataset_id} doesn't support ordering, retrying without it")
-                        params.pop('$order', None)
-                        response = await client.get(socrata_url, params=params, timeout=10.0)
-                        if response.status_code == 200:
-                            data = response.json()
-                            if isinstance(data, list) and len(data) > 0:
-                                for item in data:
-                                    normalized = self._normalize_socrata_record(item)
-                                    if normalized and self._validate_vendor_match(normalized, query):
-                                        dataset_results.append(normalized)
-                except Exception as e:
-                    logger.debug(f"Search on {dataset_id} failed: {e}")
-                
-                
-                # Add dataset results to overall results
-                all_results.extend(dataset_results)
-                
-                if len(all_results) >= limit:
-                    break
-                    
             except Exception as e:
-                logger.debug(f"❌ Dataset {dataset_id} search failed: {e}")
-                continue
+                logger.debug(f"Search on {dataset_id} failed: {e}")
+            
+            return dataset_results
+                
+        except Exception as e:
+            logger.debug(f"❌ Dataset {dataset_id} search failed: {e}")
+            return []
+    
+    async def _search_socrata_enhanced(self, client: httpx.AsyncClient, query: str, limit: int, year: int = None) -> List[Dict[str, Any]]:
+        """⚡ Enhanced Socrata search using PARALLEL dataset searches for maximum speed."""
+        per_dataset_limit = max(10, limit // len(self.CHECKBOOK_DATASETS))
+        
+        logger.info(f"⚡ Starting PARALLEL search across {len(self.CHECKBOOK_DATASETS)} datasets")
+        
+        # ⚡ PARALLEL EXECUTION - Search all datasets simultaneously
+        search_tasks = [
+            self._search_single_dataset(client, dataset_id, query, per_dataset_limit, year)
+            for dataset_id in self.CHECKBOOK_DATASETS
+        ]
+        
+        # Wait for all searches to complete (or timeout)
+        dataset_results_list = await asyncio.gather(*search_tasks, return_exceptions=True)
+        
+        # Flatten results and handle exceptions
+        all_results = []
+        for i, results in enumerate(dataset_results_list):
+            if isinstance(results, Exception):
+                logger.debug(f"❌ Dataset {self.CHECKBOOK_DATASETS[i]} failed with exception: {results}")
+            elif isinstance(results, list):
+                all_results.extend(results)
         
         # Use base class deduplication
         unique_results = self._deduplicate_results(all_results)
