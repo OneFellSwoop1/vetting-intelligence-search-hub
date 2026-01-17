@@ -6,7 +6,7 @@ uvicorn[standard]==0.24.0
 httpx==0.25.2
 
 # Data processing and validation
-pydantic==2.5.0
+pydantic>=2.7.0,<3.0.0
 python-multipart==0.0.6
 
 # XML processing for Checkbook NYC API
@@ -38,7 +38,7 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-mock==3.12.0
 pytest-cov==4.1.0
-pydantic-settings==2.11.0
+pydantic-settings>=2.1.0,<3.0.0
 
 # Data analysis (optional, for correlation features)
 pandas>=2.0.0
