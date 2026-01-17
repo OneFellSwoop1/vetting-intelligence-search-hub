@@ -1,13 +1,11 @@
 name: CI
 
-# Temporarily disabled while debugging CI issues
-# Re-enable after fixing configuration problems
 on:
-  workflow_dispatch:  # Manual trigger only
-  # push:
-  #   branches: [ main ]
-  # pull_request:
-  #   branches: [ main ]
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Also allow manual trigger
 
 jobs:
   test-backend:
