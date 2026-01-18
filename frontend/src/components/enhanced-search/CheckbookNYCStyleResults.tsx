@@ -182,7 +182,7 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={resultsContainerRef} className="space-y-6">
       {/* Header - CheckbookNYC Style */}
       <div className="bg-blue-600 text-white rounded-lg p-6">
         <h1 className="text-2xl font-bold mb-2">{searchQuery}</h1>
