@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronDownIcon, 
   ChevronUpIcon, 
@@ -61,6 +61,11 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
   const [selectedRecordType, setSelectedRecordType] = useState<string>('all');
   const [selectedParty, setSelectedParty] = useState<string>('all');
   const itemsPerPage = 20;
+
+  // 🔧 FIX: Scroll to top when page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
   
   // Filter results to only include FEC data
   const fecResults = useMemo(() => {

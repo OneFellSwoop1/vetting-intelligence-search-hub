@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, ArrowTopRightOnSquareIcon, FunnelIcon, ChartBarIcon, CurrencyDollarIcon, BuildingOfficeIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 interface CheckbookResult {
@@ -36,6 +36,11 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(25);
+  
+  // 🔧 FIX: Scroll to top when page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
   
   // Helper function to safely parse amount
   const parseAmount = (amount: number | string | undefined): number => {
