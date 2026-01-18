@@ -31,10 +31,13 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
   const [selectedSource, setSelectedSource] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  const resultsContainerRef = React.useRef<HTMLDivElement>(null);
 
-  // 🔧 FIX: Scroll to top when page changes
+  // 🔧 FIX: Scroll to results container when page changes
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (resultsContainerRef.current) {
+      resultsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [currentPage]);
 
   // Source configuration matching your existing setup
@@ -160,7 +163,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
   }
 
   return (
-    <div className="space-y-4">
+    <div ref={resultsContainerRef} className="space-y-4">
       {/* Search and Filter Controls - NYC Style */}
       <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">

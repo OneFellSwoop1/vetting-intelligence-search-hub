@@ -36,10 +36,13 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(25);
+  const resultsContainerRef = React.useRef<HTMLDivElement>(null);
   
-  // 🔧 FIX: Scroll to top when page changes
+  // 🔧 FIX: Scroll to results container when page changes
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (resultsContainerRef.current) {
+      resultsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [currentPage]);
   
   // Helper function to safely parse amount
