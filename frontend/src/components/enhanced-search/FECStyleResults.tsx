@@ -61,10 +61,13 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
   const [selectedRecordType, setSelectedRecordType] = useState<string>('all');
   const [selectedParty, setSelectedParty] = useState<string>('all');
   const itemsPerPage = 20;
+  const resultsContainerRef = React.useRef<HTMLDivElement>(null);
 
-  // 🔧 FIX: Scroll to top when page changes
+  // 🔧 FIX: Scroll to results container when page changes
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (resultsContainerRef.current) {
+      resultsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [currentPage]);
   
   // Filter results to only include FEC data
@@ -214,6 +217,7 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
 
   return (
     <motion.div 
+      ref={resultsContainerRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
