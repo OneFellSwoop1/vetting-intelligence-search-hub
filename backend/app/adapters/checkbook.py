@@ -206,10 +206,12 @@ class CheckbookNYCAdapter(HTTPAdapter):
             socrata_url = f"{self.socrata_base_url}/resource/{dataset_id}.json"
             dataset_results = []
             
-            # Strategy 1: Full-text search (RELIABLE - works across all datasets)
-            # Socrata's full-text search is more forgiving than field-specific queries
+            # Strategy 1: Full-text search with NBE (New Backend Engine) for fast queries
+            # $$read_from_nbe=true dramatically speeds up Socrata queries on large datasets
             try:
                 params = {
+                    '$$read_from_nbe': 'true',
+                    '$$version': '2.1',
                     '$q': query.strip(),
                     '$limit': per_dataset_limit,
                 }
@@ -221,8 +223,8 @@ class CheckbookNYCAdapter(HTTPAdapter):
                 # Try to add date ordering (gracefully fail if field doesn't exist)
                 params['$order'] = 'start_date DESC'
                 
-                logger.info(f"🔍 Searching dataset {dataset_id} with full-text: '{query}'")
-                response = await client.get(socrata_url, params=params, timeout=5.0)  # ⚡ Reduced from 10s to 5s
+                logger.info(f"🔍 Searching dataset {dataset_id} with full-text (NBE): '{query}'")
+                response = await client.get(socrata_url, params=params, timeout=8.0)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -238,7 +240,7 @@ class CheckbookNYCAdapter(HTTPAdapter):
                     # Try without date ordering if it fails
                     logger.debug(f"Dataset {dataset_id} doesn't support ordering, retrying without it")
                     params.pop('$order', None)
-                    response = await client.get(socrata_url, params=params, timeout=5.0)  # ⚡ Reduced from 10s to 5s
+                    response = await client.get(socrata_url, params=params, timeout=8.0)
                     if response.status_code == 200:
                         data = response.json()
                         if isinstance(data, list) and len(data) > 0:

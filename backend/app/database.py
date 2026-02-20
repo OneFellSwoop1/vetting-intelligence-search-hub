@@ -7,7 +7,7 @@ from typing import Optional, AsyncGenerator
 from sqlalchemy import create_engine, MetaData, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool, NullPool
 from sqlalchemy.engine import Engine
 import asyncpg
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -16,33 +16,53 @@ logger = logging.getLogger(__name__)
 
 # Database URL from environment - handle missing PostgreSQL gracefully
 DATABASE_URL = os.getenv("DATABASE_URL")
+IS_SQLITE = False
+
 if not DATABASE_URL:
     # Use SQLite as fallback for development
     DATABASE_URL = "sqlite:///./vetting_intelligence.db"
     ASYNC_DATABASE_URL = "sqlite+aiosqlite:///./vetting_intelligence.db"
+    IS_SQLITE = True
     logger.warning("No DATABASE_URL found, using SQLite fallback")
 else:
     ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
 # Create SQLAlchemy engine with connection pooling
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=3600,   # Recycle connections every hour
-    echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
-)
-
-# Create async engine for async operations
-async_engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
-)
+if IS_SQLITE:
+    # SQLite-specific configuration: Use StaticPool to avoid threading issues
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+    )
+    
+    # Async engine for SQLite: Use NullPool to avoid greenlet issues
+    async_engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=NullPool,
+        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+    )
+else:
+    # PostgreSQL-specific configuration with connection pooling
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+    )
+    
+    async_engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+    )
 
 # Create session factories
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -50,7 +70,8 @@ AsyncSessionLocal = async_sessionmaker(
     bind=async_engine,
     class_=AsyncSession,
     autocommit=False,
-    autoflush=False
+    autoflush=False,
+    expire_on_commit=False  # Important for SQLite to avoid issues after commit
 )
 
 # Create base class for declarative models
