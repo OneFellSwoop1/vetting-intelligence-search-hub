@@ -1406,15 +1406,33 @@ export default function VettingIntelligenceHub() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-4"
               >
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
-                    <span className="text-2xl">🤝</span>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <span className="text-2xl">🤝</span>
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-white">NYC Lobbying</h3>
+                      <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'nyc_lobbyist').length} lobbying records found</p>
+                      <p className="text-gray-400 text-xs mt-0.5">
+                        NYC Open Data bi-monthly filings (through 2025) ·{' '}
+                        <span className="text-orange-300">2026 filings available after March 15, 2026</span>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-white">NYC Lobbying</h3>
-                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'nyc_lobbyist').length} lobbying records found</p>
-                    <p className="text-gray-400 text-xs mt-0.5">Source: NYC Open Data bi-monthly filings · 2026 registrations available after March 2026</p>
-                  </div>
+                  {/* Direct link to NYC City Clerk for current-year verification */}
+                  <a
+                    href={`https://lobbyistsearch.nyc.gov/search?name=${encodeURIComponent(query)}&type=client`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-400/40 hover:border-orange-400/70 rounded-xl text-orange-200 hover:text-white text-sm font-medium transition-all duration-200 group"
+                    title="Open NYC City Clerk eLobbyist — includes current 2026 registrations"
+                  >
+                    <span>Verify on NYC City Clerk</span>
+                    <svg className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
                 </div>
                 <NYCLobbyistStyleResults 
                   results={displayResults.filter(r => r.source === 'nyc_lobbyist').map(result => ({
@@ -1435,6 +1453,7 @@ export default function VettingIntelligenceHub() {
                     registration_count: result.registration_count,
                     record_type: result.record_type
                   }))}
+                  searchQuery={query}
                   isLoading={loading}
                   onViewDetails={(result) => handleViewDetails(result as any)}
                 />

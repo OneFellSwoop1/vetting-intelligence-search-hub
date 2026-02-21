@@ -27,10 +27,11 @@ interface SearchResult {
 interface NYCLobbyistStyleResultsProps {
   results: SearchResult[];
   isLoading?: boolean;
+  searchQuery?: string;
   onViewDetails?: (result: SearchResult) => void;
 }
 
-const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ results, isLoading, onViewDetails }) => {
+const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ results, isLoading, searchQuery, onViewDetails }) => {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [searchBy, setSearchBy] = useState<'entity' | 'client' | 'all'>('all');
   const [selectedYear, setSelectedYear] = useState<string>('');
@@ -246,10 +247,21 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
 
       {/* Results Table - NYC Lobbying Style */}
       <div className="bg-white border border-gray-300 rounded-lg overflow-hidden">
-        <div className="bg-blue-600 px-4 py-3">
+        <div className="bg-blue-600 px-4 py-3 flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-white">
             Search Results ({filteredAndSortedResults.length} records found)
           </h2>
+          {searchQuery && (
+            <a
+              href={`https://lobbyistsearch.nyc.gov/search?name=${encodeURIComponent(searchQuery)}&type=client`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/30 rounded-lg text-white text-xs font-medium transition-colors whitespace-nowrap"
+              title="Includes 2026 registrations not yet in Open Data"
+            >
+              <span>Check 2026 on City Clerk ↗</span>
+            </a>
+          )}
         </div>
 
         <div className="overflow-x-auto">
