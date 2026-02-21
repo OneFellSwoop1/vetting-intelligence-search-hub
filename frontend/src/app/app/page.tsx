@@ -1412,12 +1412,13 @@ export default function VettingIntelligenceHub() {
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-white">NYC Lobbying</h3>
-                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'nyc_lobbyist' || r.source === 'nyc_lobbyist_year_header').length} lobbying records found</p>
+                    <p className="text-gray-300 text-sm">{displayResults.filter(r => r.source === 'nyc_lobbyist').length} lobbying records found</p>
+                    <p className="text-gray-400 text-xs mt-0.5">Source: NYC Open Data bi-monthly filings · 2026 registrations available after March 2026</p>
                   </div>
                 </div>
                 <NYCLobbyistStyleResults 
-                  results={displayResults.filter(r => r.source === 'nyc_lobbyist' || r.source === 'nyc_lobbyist_year_header').map(result => ({
-                    id: result.id || `${result.source}-${(result.vendor || '').replace(/\s+/g, '-')}-${result.amount || 0}`,
+                  results={displayResults.filter(r => r.source === 'nyc_lobbyist').map(result => ({
+                    id: result.id || `${result.source}-${(result.vendor || '').replace(/\s+/g, '-')}-${result.year || 0}`,
                     source: result.source,
                     title: result.title,
                     vendor: result.vendor,

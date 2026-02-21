@@ -227,7 +227,9 @@ class NYCLobbyistAdapter:
                     
                     lobbyist_params = {
                         **params_base,
-                        "$limit": "100",  # Get more records for better grouping
+                        "$$read_from_nbe": "true",
+                        "$$version": "2.1",
+                        "$limit": "200",  # More records for thorough lobbyist/client grouping
                         "$order": "report_year DESC, start_date DESC",
                         "$where": where_clause
                     }
@@ -243,11 +245,16 @@ class NYCLobbyistAdapter:
                             if data:
                                 logger.info(f"Sample result - Client: {data[0].get('client_name', 'N/A')}, Lobbyist: {data[0].get('lobbyist_name', 'N/A')}")
                                 
-                                # Group results by year and entity
+                                # Group results by lobbyist+year (each group = one table row)
                                 structured_results = self._group_results_by_year(data)
                                 
-                                # Limit to top 20 grouped results (but each result represents multiple registrations)
-                                results = structured_results[:20]
+                                # Return up to 50 grouped results
+                                results = structured_results[:50]
+                                
+                                # Note: 2026 bi-monthly filings are not yet in this dataset.
+                                # Period 1 (Jan–Feb 2026) reports are due March 15, 2026.
+                                # The City Clerk registration system shows 2026 registrations
+                                # but that data is not available via the public Open Data API.
                             
                         else:
                             logger.warning(f"NYC eLobbyist API error: {response.status}")

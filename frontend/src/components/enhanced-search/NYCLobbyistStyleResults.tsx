@@ -189,20 +189,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
           <h3 className="text-lg font-semibold text-gray-900">Search Filters</h3>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search By</label>
-            <select
-              value={searchBy}
-              onChange={(e) => setSearchBy(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Fields</option>
-              <option value="entity">Entity/Vendor</option>
-              <option value="client">Client/Agency</option>
-            </select>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
             <select
@@ -218,16 +205,22 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Data Source</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
             <select
-              value={selectedSource}
-              onChange={(e) => setSelectedSource(e.target.value)}
+              value={sortConfig ? `${sortConfig.key}-${sortConfig.direction}` : ''}
+              onChange={(e) => {
+                if (!e.target.value) { setSortConfig(null); return; }
+                const [key, dir] = e.target.value.split('-');
+                setSortConfig({ key, direction: dir as 'asc' | 'desc' });
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="">All Sources</option>
-              {Object.entries(sourceConfig).map(([key, config]) => (
-                <option key={key} value={key}>{config.name}</option>
-              ))}
+              <option value="">Default</option>
+              <option value="date-desc">Date (Newest)</option>
+              <option value="date-asc">Date (Oldest)</option>
+              <option value="amount-desc">Amount (High → Low)</option>
+              <option value="amount-asc">Amount (Low → High)</option>
+              <option value="vendor-asc">Lobbyist (A → Z)</option>
             </select>
           </div>
 
@@ -240,7 +233,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
                 setSortConfig(null);
                 setCurrentPage(1);
               }}
-              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors w-full"
             >
               Reset Filters
             </button>
@@ -263,12 +256,11 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
           <table className="min-w-full">
             <thead className="sticky top-0 z-10">
               <tr>
-                <SortableHeader label="Entity/Vendor" sortKey="vendor" />
-                <SortableHeader label="Description/Client" sortKey="title" />
-                <SortableHeader label="Agency/Target" sortKey="agency" />
-                <SortableHeader label="Amount" sortKey="amount" />
-                <SortableHeader label="Date" sortKey="date" />
-                <SortableHeader label="Source" sortKey="source" />
+                <SortableHeader label="Lobbyist" sortKey="vendor" />
+                <SortableHeader label="Client / Description" sortKey="title" />
+                <SortableHeader label="Agency Targets" sortKey="agency" />
+                <SortableHeader label="Compensation" sortKey="amount" />
+                <SortableHeader label="Year" sortKey="date" />
                 <th className="px-4 py-3 text-left text-sm font-semibold text-white bg-blue-600">
                   Actions
                 </th>
@@ -283,54 +275,42 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
                 </tr>
               ) : (
                 paginatedResults.map((result, index) => {
-                  const sourceInfo = sourceConfig[result.source as keyof typeof sourceConfig];
                   return (
                     <tr key={result.id || index} className="hover:bg-gray-50 transition-colors">
                       <td className="px-3 py-2 text-sm">
-                        <div className="font-medium text-gray-900">
-                          {result.vendor || 'N/A'}
+                        <div className="font-semibold text-gray-900">
+                          {result.vendor || result.title?.replace(/NYC Lobbyist: /, '').replace(/ \(\d+\)$/, '') || 'N/A'}
                         </div>
-                        {result.record_type && (
+                        {result.registration_count != null && result.registration_count > 0 && (
                           <div className="text-xs text-gray-500 mt-0.5">
-                            {result.record_type}
+                            {result.registration_count} filing{result.registration_count !== 1 ? 's' : ''}
                           </div>
                         )}
                       </td>
                       <td className="px-3 py-2 text-sm">
-                        <div className="font-medium text-gray-900 max-w-md">
-                          {result.title}
-                        </div>
+                        {result.client_count != null && result.client_count > 0 && (
+                          <div className="text-xs font-medium text-blue-700 mb-0.5">
+                            {result.client_count} client{result.client_count !== 1 ? 's' : ''}
+                          </div>
+                        )}
                         {result.description && (
-                          <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                            {result.description.substring(0, 150)}
-                            {result.description.length > 150 && '...'}
+                          <div className="text-xs text-gray-600 line-clamp-2">
+                            {result.description.substring(0, 180)}
+                            {result.description.length > 180 && '...'}
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-900">
-                        {result.agency || 'N/A'}
+                      <td className="px-3 py-2 text-sm text-gray-700 max-w-xs">
+                        <div className="line-clamp-2 text-xs">{result.agency || '—'}</div>
                       </td>
                       <td className="px-3 py-2 text-sm">
-                        <span className="font-semibold text-green-600">
+                        <span className={`font-semibold ${result.amount ? 'text-green-600' : 'text-gray-400'}`}>
                           {formatCurrency(result.amount)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-500">
-                        {result.date ? new Date(result.date).toLocaleDateString() : 
-                         result.year ? result.year.toString() : 'N/A'}
-                      </td>
-                      <td className="px-3 py-2 text-sm">
-                        {sourceInfo && (
-                          <span 
-                            className="inline-flex px-2 py-1 text-xs font-medium rounded-full"
-                            style={{ 
-                              backgroundColor: sourceInfo.bgColor, 
-                              color: sourceInfo.color 
-                            }}
-                          >
-                            {sourceInfo.name}
-                          </span>
-                        )}
+                      <td className="px-3 py-2 text-sm font-medium text-gray-700">
+                        {result.year ? result.year.toString() : 
+                         (result.date ? new Date(result.date).getFullYear() : '—')}
                       </td>
                       <td className="px-3 py-2 text-sm">
                         <div className="flex items-center gap-2">
@@ -349,7 +329,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
                             onClick={() => onViewDetails?.(result)}
                             className="text-blue-600 hover:text-blue-800 text-xs hover:bg-blue-50 px-2 py-1 rounded transition-colors"
                           >
-                            View Details
+                            Details
                           </button>
                         </div>
                       </td>
