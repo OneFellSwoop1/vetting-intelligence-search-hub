@@ -1,6 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, ArrowTopRightOnSquareIcon, FunnelIcon, ChartBarIcon, CurrencyDollarIcon, BuildingOfficeIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
+function pageNumbers(currentPage: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+  const end = Math.min(totalPages, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
 interface CheckbookResult {
   id?: string;
   source: string;
@@ -36,14 +42,23 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(25);
-  const resultsContainerRef = React.useRef<HTMLDivElement>(null);
-  
-  // 🔧 FIX: Scroll to results container when page changes
+  const tableTopRef = React.useRef<HTMLDivElement>(null);
+  const userInitiatedPageChange = React.useRef(false);
+
+  // Scroll only on explicit user page navigation
   useEffect(() => {
-    if (resultsContainerRef.current) {
-      resultsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!userInitiatedPageChange.current) return;
+    userInitiatedPageChange.current = false;
+    if (tableTopRef.current) {
+      const top = tableTopRef.current.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }
   }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    userInitiatedPageChange.current = true;
+    setCurrentPage(page);
+  };
   
   // Helper function to safely parse amount
   const parseAmount = (amount: number | string | undefined): number => {
@@ -182,9 +197,9 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
   }
 
   return (
-    <div ref={resultsContainerRef} className="space-y-6">
+    <div className="space-y-4">
       {/* Header - CheckbookNYC Style */}
-      <div className="bg-blue-600 text-white rounded-lg p-6">
+      <div className="bg-blue-600 text-white rounded-lg p-4">
         <h1 className="text-2xl font-bold mb-2">{searchQuery}</h1>
         <p className="text-blue-100">NYC Contract Spending Analysis</p>
       </div>
@@ -235,7 +250,7 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
       </div>
 
       {/* Top 5 Agencies - CheckbookNYC Style */}
-      <div className="bg-white border border-gray-300 rounded-lg p-6">
+      <div className="bg-white border border-gray-300 rounded-lg p-4">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Top 5 Agencies</h3>
         <div className="space-y-3">
           {financialSummary.topAgencies.map(([agency, amount], index) => (
@@ -252,6 +267,9 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
         </div>
       </div>
 
+      {/* Scroll anchor placed just above the table */}
+      <div ref={tableTopRef} />
+
       {/* Contract Details Table - CheckbookNYC Style */}
       <div className="bg-white border border-gray-300 rounded-lg overflow-hidden">
         <div className="bg-blue-600 px-4 py-3">
@@ -262,7 +280,7 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
 
         <div className="overflow-x-auto">
           <table className="min-w-full">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr>
                 <SortableHeader label="Contract ID" sortKey="document_id" />
                 <SortableHeader label="Purpose" sortKey="title" />
@@ -275,7 +293,7 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {paginatedResults.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
@@ -288,42 +306,42 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
                   
                   return (
                     <tr key={result.id || index} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm">
-                        <div className="font-mono text-blue-600">
+                      <td className="px-3 py-2 text-sm">
+                        <div className="font-mono text-blue-600 text-xs">
                           {result.document_id || 'N/A'}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         <div className="font-medium text-gray-900 max-w-md">
                           {result.title || result.description || 'No description available'}
                         </div>
                         {result.description && result.title !== result.description && (
-                          <div className="text-xs text-gray-500 mt-1 line-clamp-2">
+                          <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
                             {result.description.substring(0, 150)}
                             {result.description.length > 150 && '...'}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-3 py-2 text-sm text-gray-900">
                         <div className="font-medium">
                           {result.agency || 'Unknown Agency'}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         <div className="font-medium text-gray-900">
                           {result.vendor || result.entity_name || 'Unknown Vendor'}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className="font-bold text-green-600 text-base">
+                      <td className="px-3 py-2 text-sm">
+                        <span className="font-bold text-green-600">
                           {formatCurrency(amount)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-3 py-2 text-sm text-gray-500">
                         {result.date ? new Date(result.date).toLocaleDateString() : 
                          result.year ? result.year.toString() : 'N/A'}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         <div className="flex items-center gap-2">
                           {result.url && (
                             <a
@@ -355,27 +373,37 @@ const CheckbookNYCStyleResults: React.FC<CheckbookNYCStyleResultsProps> = ({
         {/* Pagination - CheckbookNYC Style */}
         {totalPages > 1 && (
           <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-sm text-gray-700">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, sortedResults.length)} of {sortedResults.length} results
+                {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, sortedResults.length)} of {sortedResults.length} results
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  onClick={() => goToPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Previous
+                  ← Prev
                 </button>
-                <span className="text-sm text-gray-700">
-                  Page {currentPage} of {totalPages}
-                </span>
+                {pageNumbers(currentPage, totalPages).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      page === currentPage
+                        ? 'bg-blue-600 text-white font-semibold'
+                        : 'border border-gray-300 hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
                 <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Next
+                  Next →
                 </button>
               </div>
             </div>

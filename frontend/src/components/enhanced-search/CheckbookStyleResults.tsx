@@ -1,4 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+
+function pageNumbers(currentPage: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+  const end = Math.min(totalPages, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
 import { ChevronDownIcon, ChevronUpIcon, ArrowTopRightOnSquareIcon, DocumentIcon, CalendarIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 interface SearchResult {
   id?: string;
@@ -23,10 +29,32 @@ interface GroupedResults {
   [source: string]: SearchResult[];
 }
 
+const ITEMS_PER_PAGE = 20;
+
 const CheckbookStyleResults: React.FC<CheckbookStyleResultsProps> = ({ results, isLoading }) => {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'relevance'>('relevance');
+  const [currentPage, setCurrentPage] = useState(1);
+  const listTopRef = useRef<HTMLDivElement>(null);
+  const userInitiatedPageChange = useRef(false);
+
+  // Reset to page 1 when tab or sort changes
+  useEffect(() => { setCurrentPage(1); }, [activeTab, sortBy]);
+
+  useEffect(() => {
+    if (!userInitiatedPageChange.current) return;
+    userInitiatedPageChange.current = false;
+    if (listTopRef.current) {
+      const top = listTopRef.current.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
+  }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    userInitiatedPageChange.current = true;
+    setCurrentPage(page);
+  };
 
   // Group results by source
   const groupedResults = useMemo(() => {
@@ -68,6 +96,12 @@ const CheckbookStyleResults: React.FC<CheckbookStyleResultsProps> = ({ results, 
     }
     return groupedResults[activeTab] || [];
   }, [activeTab, results, groupedResults]);
+
+  const totalPages = Math.ceil(displayResults.length / ITEMS_PER_PAGE);
+  const pagedDisplayResults = displayResults.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const toggleExpanded = (id: string) => {
     const newExpanded = new Set(expandedItems);
@@ -175,14 +209,20 @@ const CheckbookStyleResults: React.FC<CheckbookStyleResultsProps> = ({ results, 
         </div>
       </div>
 
+      {/* Scroll anchor + result count */}
+      <div ref={listTopRef} className="flex items-center justify-between text-sm text-gray-500 px-1">
+        <span>{displayResults.length} result{displayResults.length !== 1 ? 's' : ''}</span>
+        {totalPages > 1 && <span>Page {currentPage} of {totalPages}</span>}
+      </div>
+
       {/* Results List */}
-      <div className="space-y-4">
-        {displayResults.length === 0 ? (
+      <div className="space-y-3">
+        {pagedDisplayResults.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
             <p className="text-gray-500">No results found for the current filter.</p>
           </div>
         ) : (
-          displayResults.map((result) => {
+          pagedDisplayResults.map((result) => {
             const isExpanded = expandedItems.has(result.id || '');
             return (
               <div
@@ -190,7 +230,7 @@ const CheckbookStyleResults: React.FC<CheckbookStyleResultsProps> = ({ results, 
                 className={`bg-white border rounded-lg overflow-hidden transition-all duration-200 ${getSourceColor(result.source)}`}
               >
                 {/* Main Result Card */}
-                <div className="p-6">
+                <div className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       {/* Title and Source */}
@@ -347,6 +387,44 @@ const CheckbookStyleResults: React.FC<CheckbookStyleResultsProps> = ({ results, 
           })
         )}
       </div>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2 border-t border-gray-200 flex-wrap gap-2">
+          <div className="text-sm text-gray-500">
+            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, displayResults.length)} of {displayResults.length} results
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => goToPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Prev
+            </button>
+            {pageNumbers(currentPage, totalPages).map(page => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  page === currentPage
+                    ? 'bg-blue-600 text-white font-semibold'
+                    : 'border border-gray-300 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

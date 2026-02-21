@@ -12,6 +12,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 
+/** Returns up to 5 page numbers centered on currentPage */
+function pageNumbers(currentPage: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+  const end = Math.min(totalPages, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
 interface FECResult {
   id?: string;
   source: string;
@@ -61,14 +68,28 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
   const [selectedRecordType, setSelectedRecordType] = useState<string>('all');
   const [selectedParty, setSelectedParty] = useState<string>('all');
   const itemsPerPage = 20;
-  const resultsContainerRef = React.useRef<HTMLDivElement>(null);
+  // Ref placed at the top of the results list (not the whole component with summary cards)
+  const resultsListRef = React.useRef<HTMLDivElement>(null);
+  // Flag tracks only explicit user pagination clicks — filter changes must NOT trigger scroll
+  const userInitiatedPageChange = React.useRef(false);
 
-  // 🔧 FIX: Scroll to results container when page changes
+  // Reset to page 1 when filters change, without triggering a scroll
+  useEffect(() => { setCurrentPage(1); }, [selectedRecordType, selectedParty]);
+
+  // Scroll only when the user explicitly clicks a page button
   useEffect(() => {
-    if (resultsContainerRef.current) {
-      resultsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!userInitiatedPageChange.current) return;
+    userInitiatedPageChange.current = false;
+    if (resultsListRef.current) {
+      const top = resultsListRef.current.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }
   }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    userInitiatedPageChange.current = true;
+    setCurrentPage(page);
+  };
   
   // Filter results to only include FEC data
   const fecResults = useMemo(() => {
@@ -217,7 +238,6 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
 
   return (
     <motion.div 
-      ref={resultsContainerRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
@@ -317,7 +337,7 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
       </div>
 
       {/* Results List */}
-      <div className="space-y-4">
+      <div ref={resultsListRef} className="space-y-3">
         <AnimatePresence>
           {paginatedResults.map((result, index) => (
             <motion.div
@@ -325,9 +345,9 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              transition={{ delay: index * 0.05 }}
-              whileHover={{ scale: 1.01, y: -2 }}
-              className="backdrop-blur-sm bg-white/10 border border-white/20 rounded-xl p-6 shadow-lg"
+              transition={{ delay: index * 0.03 }}
+              whileHover={{ scale: 1.005, y: -1 }}
+              className="backdrop-blur-sm bg-white/10 border border-white/20 rounded-xl p-4 shadow-lg"
             >
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
@@ -463,27 +483,37 @@ const FECStyleResults: React.FC<FECStyleResultsProps> = ({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="backdrop-blur-sm bg-white/10 border border-white/20 rounded-xl p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="text-sm text-gray-300">
-              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, sortedResults.length)} of {sortedResults.length} results
+              {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, sortedResults.length)} of {sortedResults.length} results
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                onClick={() => goToPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
+                className="px-3 py-1.5 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
               >
-                Previous
+                ← Prev
               </button>
-              <span className="text-sm text-gray-300 px-3">
-                Page {currentPage} of {totalPages}
-              </span>
+              {pageNumbers(currentPage, totalPages).map(page => (
+                <button
+                  key={page}
+                  onClick={() => goToPage(page)}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    page === currentPage
+                      ? 'bg-blue-500 text-white font-semibold'
+                      : 'bg-white/10 border border-white/20 text-gray-300 hover:bg-white/20'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
               <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
-                className="px-4 py-2 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
+                className="px-3 py-1.5 text-sm bg-white/10 border border-white/20 rounded-lg hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
               >
-                Next
+                Next →
               </button>
             </div>
           </div>

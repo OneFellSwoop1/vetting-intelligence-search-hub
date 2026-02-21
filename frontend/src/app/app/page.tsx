@@ -54,6 +54,7 @@ interface NetworkData {
 // This will eventually replace pages/index.js
 
 interface SearchResult {
+  id?: string;
   title: string;
   description: string;
   amount?: string | number;

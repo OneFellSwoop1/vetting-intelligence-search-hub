@@ -1,4 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
+function pageNumbers(currentPage: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+  const end = Math.min(totalPages, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
 import { 
   ExternalLink, 
   Calendar, 
@@ -69,6 +75,8 @@ const sourceConfig = {
   }
 };
 
+const ITEMS_PER_PAGE = 20;
+
 const EnhancedResultsDisplay: React.FC<ResultsDisplayProps> = ({ 
   results, 
   onResultClick, 
@@ -76,6 +84,29 @@ const EnhancedResultsDisplay: React.FC<ResultsDisplayProps> = ({
 }) => {
   const [expandedResults, setExpandedResults] = useState<Set<number>>(new Set());
   const [hoveredResult, setHoveredResult] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const listTopRef = useRef<HTMLDivElement>(null);
+  const userInitiatedPageChange = useRef(false);
+
+  // Reset to page 1 when the result set changes
+  useEffect(() => { setCurrentPage(1); }, [results]);
+
+  useEffect(() => {
+    if (!userInitiatedPageChange.current) return;
+    userInitiatedPageChange.current = false;
+    if (listTopRef.current) {
+      const top = listTopRef.current.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
+  }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    userInitiatedPageChange.current = true;
+    setCurrentPage(page);
+  };
+
+  const totalPages = Math.ceil(results.length / ITEMS_PER_PAGE);
+  const pagedResults = results.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const toggleExpanded = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -145,8 +176,16 @@ const EnhancedResultsDisplay: React.FC<ResultsDisplayProps> = ({
   }
 
   return (
-    <div className="space-y-4">
-      {results.map((result, index) => {
+    <div className="space-y-3">
+      {/* Result count + pagination summary */}
+      <div ref={listTopRef} className="flex items-center justify-between text-sm text-gray-500 px-1">
+        <span>{results.length} result{results.length !== 1 ? 's' : ''} found</span>
+        {totalPages > 1 && (
+          <span>Page {currentPage} of {totalPages}</span>
+        )}
+      </div>
+
+      {pagedResults.map((result, index) => {
         const isExpanded = expandedResults.has(index);
         const isHovered = hoveredResult === index;
         const config = sourceConfig[result.source as keyof typeof sourceConfig];
@@ -184,7 +223,7 @@ const EnhancedResultsDisplay: React.FC<ResultsDisplayProps> = ({
             onMouseLeave={() => setHoveredResult(null)}
             onClick={() => onResultClick(result)}
           >
-            <CardContent className="p-6">
+            <CardContent className="p-4">
               {/* Header Section */}
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1 min-w-0">
@@ -327,6 +366,44 @@ const EnhancedResultsDisplay: React.FC<ResultsDisplayProps> = ({
           </Card>
         );
       })}
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2 border-t border-gray-200 flex-wrap gap-2">
+          <div className="text-sm text-gray-500">
+            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, results.length)} of {results.length} results
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => goToPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Prev
+            </button>
+            {pageNumbers(currentPage, totalPages).map(page => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  page === currentPage
+                    ? 'bg-blue-600 text-white font-semibold'
+                    : 'border border-gray-300 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

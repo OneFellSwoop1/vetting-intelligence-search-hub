@@ -1,6 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, ArrowTopRightOnSquareIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
+function pageNumbers(currentPage: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+  const end = Math.min(totalPages, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
 interface SearchResult {
   id?: string;
   source: string;
@@ -31,14 +37,26 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
   const [selectedSource, setSelectedSource] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
-  const resultsContainerRef = React.useRef<HTMLDivElement>(null);
+  const tableTopRef = React.useRef<HTMLDivElement>(null);
+  const userInitiatedPageChange = React.useRef(false);
 
-  // 🔧 FIX: Scroll to results container when page changes
+  // Reset to page 1 on filter changes without triggering scroll
+  useEffect(() => { setCurrentPage(1); }, [selectedYear, selectedSource, searchBy]);
+
+  // Scroll only on explicit user page navigation
   useEffect(() => {
-    if (resultsContainerRef.current) {
-      resultsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!userInitiatedPageChange.current) return;
+    userInitiatedPageChange.current = false;
+    if (tableTopRef.current) {
+      const top = tableTopRef.current.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }
   }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    userInitiatedPageChange.current = true;
+    setCurrentPage(page);
+  };
 
   // Source configuration matching your existing setup
   const sourceConfig = {
@@ -163,7 +181,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
   }
 
   return (
-    <div ref={resultsContainerRef} className="space-y-4">
+    <div className="space-y-4">
       {/* Search and Filter Controls - NYC Style */}
       <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-4">
@@ -230,6 +248,9 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
         </div>
       </div>
 
+      {/* Scroll anchor — sits at the true top of the table block */}
+      <div ref={tableTopRef} />
+
       {/* Results Table - NYC Lobbying Style */}
       <div className="bg-white border border-gray-300 rounded-lg overflow-hidden">
         <div className="bg-blue-600 px-4 py-3">
@@ -240,7 +261,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
 
         <div className="overflow-x-auto">
           <table className="min-w-full">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr>
                 <SortableHeader label="Entity/Vendor" sortKey="vendor" />
                 <SortableHeader label="Description/Client" sortKey="title" />
@@ -253,7 +274,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {paginatedResults.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
@@ -265,40 +286,40 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
                   const sourceInfo = sourceConfig[result.source as keyof typeof sourceConfig];
                   return (
                     <tr key={result.id || index} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         <div className="font-medium text-gray-900">
                           {result.vendor || 'N/A'}
                         </div>
                         {result.record_type && (
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className="text-xs text-gray-500 mt-0.5">
                             {result.record_type}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         <div className="font-medium text-gray-900 max-w-md">
                           {result.title}
                         </div>
                         {result.description && (
-                          <div className="text-xs text-gray-500 mt-1 line-clamp-2">
+                          <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
                             {result.description.substring(0, 150)}
                             {result.description.length > 150 && '...'}
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-3 py-2 text-sm text-gray-900">
                         {result.agency || 'N/A'}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         <span className="font-semibold text-green-600">
                           {formatCurrency(result.amount)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-3 py-2 text-sm text-gray-500">
                         {result.date ? new Date(result.date).toLocaleDateString() : 
                          result.year ? result.year.toString() : 'N/A'}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         {sourceInfo && (
                           <span 
                             className="inline-flex px-2 py-1 text-xs font-medium rounded-full"
@@ -311,7 +332,7 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="px-3 py-2 text-sm">
                         <div className="flex items-center gap-2">
                           {result.url && (
                             <a
@@ -343,27 +364,37 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-sm text-gray-700">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedResults.length)} of {filteredAndSortedResults.length} results
+                {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, filteredAndSortedResults.length)} of {filteredAndSortedResults.length} results
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  onClick={() => goToPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Previous
+                  ← Prev
                 </button>
-                <span className="text-sm text-gray-700">
-                  Page {currentPage} of {totalPages}
-                </span>
+                {pageNumbers(currentPage, totalPages).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      page === currentPage
+                        ? 'bg-blue-600 text-white font-semibold'
+                        : 'border border-gray-300 hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
                 <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Next
+                  Next →
                 </button>
               </div>
             </div>
