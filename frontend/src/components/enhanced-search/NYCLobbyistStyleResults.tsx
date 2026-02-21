@@ -253,13 +253,13 @@ const NYCLobbyistStyleResults: React.FC<NYCLobbyistStyleResultsProps> = ({ resul
           </h2>
           {searchQuery && (
             <a
-              href={`https://lobbyistsearch.nyc.gov/search?name=${encodeURIComponent(searchQuery)}&type=client`}
+              href="https://lobbyistsearch.nyc.gov"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/30 rounded-lg text-white text-xs font-medium transition-colors whitespace-nowrap"
-              title="Includes 2026 registrations not yet in Open Data"
+              title={`Open NYC City Clerk — search "${searchQuery}" for 2026 registrations`}
             >
-              <span>Check 2026 on City Clerk ↗</span>
+              <span>2026 data: NYC City Clerk ↗</span>
             </a>
           )}
         </div>

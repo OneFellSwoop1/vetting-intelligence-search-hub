@@ -1422,16 +1422,14 @@ export default function VettingIntelligenceHub() {
                   </div>
                   {/* Direct link to NYC City Clerk for current-year verification */}
                   <a
-                    href={`https://lobbyistsearch.nyc.gov/search?name=${encodeURIComponent(query)}&type=client`}
+                    href="https://lobbyistsearch.nyc.gov"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-400/40 hover:border-orange-400/70 rounded-xl text-orange-200 hover:text-white text-sm font-medium transition-all duration-200 group"
-                    title="Open NYC City Clerk eLobbyist — includes current 2026 registrations"
+                    title={`Search "${query}" on NYC City Clerk eLobbyist — includes current 2026 registrations`}
                   >
-                    <span>Verify on NYC City Clerk</span>
-                    <svg className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
+                    <span>NYC City Clerk ↗</span>
+                    <span className="text-orange-400/70 text-xs font-normal hidden sm:inline">search: {query}</span>
                   </a>
                 </div>
                 <NYCLobbyistStyleResults 
