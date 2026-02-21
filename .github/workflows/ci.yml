@@ -36,6 +36,8 @@ jobs:
       run: |
         cd backend
         pip install -r requirements.txt
+        # aiohttp is used by adapters (nys_ethics, etc.) but not yet in requirements.txt
+        pip install aiohttp
 
     - name: Create minimal environment.env for Pydantic
       run: |
@@ -94,6 +96,23 @@ jobs:
         NEXT_PUBLIC_API_URL=http://localhost:8000
         EOF
         echo "✅ Created .env.local file"
+
+    - name: Create utils shim if missing
+      run: |
+        cd frontend
+        mkdir -p src/lib
+        if [ ! -f src/lib/utils.ts ]; then
+          cat > src/lib/utils.ts << 'EOF'
+        import { clsx, type ClassValue } from 'clsx';
+        import { twMerge } from 'tailwind-merge';
+        export function cn(...inputs: ClassValue[]) {
+          return twMerge(clsx(inputs));
+        }
+        EOF
+          echo "Created src/lib/utils.ts shim for CI"
+        else
+          echo "src/lib/utils.ts already exists"
+        fi
 
     - name: Type check
       run: |
