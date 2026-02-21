@@ -124,8 +124,23 @@ jobs:
     - name: Build
       run: |
         cd frontend
+        # Patch next.config.js to always skip TS/ESLint in CI build —
+        # we already enforce types via the dedicated tsc --noEmit step.
+        node -e "
+          const fs = require('fs');
+          let cfg = fs.readFileSync('next.config.js', 'utf8');
+          cfg = cfg.replace(
+            /ignoreBuildErrors:\s*process\.env\.NODE_ENV\s*===\s*'development'/g,
+            \"ignoreBuildErrors: true\"
+          );
+          cfg = cfg.replace(
+            /ignoreDuringBuilds:\s*process\.env\.NODE_ENV\s*===\s*'development'/g,
+            \"ignoreDuringBuilds: true\"
+          );
+          fs.writeFileSync('next.config.js', cfg);
+        "
         npm run build
       env:
-        NODE_ENV: 'development'
         NEXT_PUBLIC_SITE_URL: 'https://poissonai.com'
         NEXT_PUBLIC_API_URL: 'http://localhost:8000'
+        NEXT_TELEMETRY_DISABLED: '1'
