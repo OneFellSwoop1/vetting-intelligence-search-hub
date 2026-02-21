@@ -18,13 +18,11 @@ else
     exit 1
 fi
 
-# Verify correct API key is loaded
-if [[ "$LDA_API_KEY" == 065* ]]; then
-    echo "✅ Correct LDA API key loaded: ${LDA_API_KEY:0:10}..."
+# Verify API key is set
+if [[ -n "$LDA_API_KEY" ]]; then
+    echo "✅ LDA API key loaded: ${LDA_API_KEY:0:10}..."
 else
-    echo "❌ ERROR: Wrong or missing API key!"
-    echo "   Expected: Should start with '065'"
-    echo "   Got:      ${LDA_API_KEY:-'NOT SET'}"
+    echo "❌ ERROR: LDA_API_KEY is not set! Check backend/environment.env"
     exit 1
 fi
 

@@ -1,4 +1,4 @@
-# Environment and secrets
+# Environment and secrets — NEVER commit these
 .env
 .env.local
 .env.development.local
@@ -6,7 +6,15 @@
 .env.production.local
 *.env
 .env.*
+environment.env
+environment.prod.env
+environment.staging.env
 !env.example
+!backend/env.example
+!frontend/.env.example
+# Kubernetes / Helm secrets
+*secret*.yaml
+*secret*.yml
 
 # Process ID files and startup tracking
 .backend_pid

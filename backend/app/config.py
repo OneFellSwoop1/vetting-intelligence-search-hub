@@ -121,11 +121,11 @@ class Settings(BaseSettings):
     
     @validator("LDA_API_KEY")
     def validate_lda_api_key(cls, v):
-        """Validate LDA API key format if provided."""
-        if v and not v.startswith('065'):
-            raise ValueError("LDA_API_KEY should start with '065' for correct format")
+        """Validate LDA API key is present and looks like a valid token."""
+        if v and len(v) < 20:
+            raise ValueError("LDA_API_KEY appears too short to be a valid API key")
         return v
-    
+
     @validator("DATABASE_URL")
     def validate_database_url(cls, v):
         """Validate database URL format."""

@@ -25,12 +25,11 @@ else
     exit 1
 fi
 
-# Verify the API key is correct
-if [[ "$LDA_API_KEY" == 065* ]]; then
-    echo "✅ Correct LDA API key detected: ${LDA_API_KEY:0:8}..."
+# Verify the API key is set
+if [[ -n "$LDA_API_KEY" ]]; then
+    echo "✅ LDA API key is present: ${LDA_API_KEY:0:8}..."
 else
-    echo "❌ API key verification failed!"
-    echo "Current key: ${LDA_API_KEY:-'NOT SET'}"
+    echo "❌ API key verification failed: LDA_API_KEY is not set!"
     exit 1
 fi
 

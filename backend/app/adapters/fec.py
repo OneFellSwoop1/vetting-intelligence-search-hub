@@ -52,24 +52,25 @@ class FECAdapter(BaseAdapter):
         logger.info(f"✅ FEC adapter initialized with API key: {self.api_key[:10]}...")
     
     def _get_api_key(self) -> str:
-        """Get FEC API key from environment or configuration."""
+        """Get FEC API key from environment. Raises if missing in production."""
         import os
-        
-        # Get directly from environment first (most reliable)
+
         api_key = os.getenv('FEC_API_KEY')
-        
+
         if not api_key:
-            # Try from config as fallback
             try:
                 from ..config import settings
                 api_key = getattr(settings, 'FEC_API_KEY', None)
-            except:
+            except Exception:
                 pass
-        
+
         if not api_key:
-            logger.warning("⚠️ FEC_API_KEY not found in configuration")
-            return "DEMO_KEY"  # FEC provides demo key for testing
-        
+            env = os.getenv('ENVIRONMENT', 'development')
+            if env == 'production':
+                raise RuntimeError("FEC_API_KEY is required in production but not set")
+            logger.warning("⚠️ FEC_API_KEY not set — FEC searches will be limited (DEMO_KEY rate limits apply)")
+            return "DEMO_KEY"
+
         logger.info(f"✅ FEC API key loaded: {api_key[:10]}...")
         return api_key
     

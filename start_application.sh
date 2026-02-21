@@ -60,15 +60,12 @@ start_backend() {
     
     echo "✅ Environment variables loaded"
     echo "🔑 LDA_API_KEY: ${LDA_API_KEY:0:10}..."
-    
-    # Verify API key format
-    if [[ "$LDA_API_KEY" == 065* ]]; then
-        echo "✅ Correct LDA API key format detected"
+
+    # Verify API key is set
+    if [[ -z "$LDA_API_KEY" ]]; then
+        echo "❌ WARNING: LDA_API_KEY is not set! Check backend/environment.env"
     else
-        echo "❌ WARNING: Incorrect LDA API key format!"
-        echo "   Expected: starts with '065'"
-        echo "   Current:  starts with '${LDA_API_KEY:0:3}'"
-        echo "   Please check backend/environment.env file"
+        echo "✅ LDA API key is present"
     fi
     
     # Activate virtual environment
