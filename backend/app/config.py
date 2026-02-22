@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     FEC_RATE_LIMIT: float = Field(0.28, env="FEC_RATE_LIMIT")  # 1000/hour = ~0.28/second
     
     # CORS Configuration
+    # Stored as a raw comma-separated string; cors_origins_list property converts to list.
+    # Do NOT use a @validator that returns a list — Pydantic v2 rejects list for str field.
     CORS_ORIGINS: str = Field(
         "http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000",
         env="CORS_ORIGINS"
@@ -90,10 +92,11 @@ class Settings(BaseSettings):
     
     @validator("CORS_ORIGINS", pre=True)
     def parse_cors_origins(cls, v):
-        """Parse CORS origins from comma-separated string."""
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
+        """Keep CORS_ORIGINS as a plain string — the cors_origins_list property parses it.
+        If somehow a list arrives (e.g. from test injection), join it back to a string."""
+        if isinstance(v, list):
+            return ",".join(str(o) for o in v)
+        return str(v) if v else ""
     
     @validator("JWT_SECRET_KEY")
     def validate_jwt_secret(cls, v):

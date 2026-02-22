@@ -70,12 +70,33 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS using centralized settings
+# ---------------------------------------------------------------------------
+# CORS — parse origins directly from the environment variable so this works
+# even if the Pydantic Settings object failed to load (FallbackSettings path).
+# allow_origins=["*"] is intentionally set while we confirm the Vercel→Render
+# connection works end-to-end.  We will restrict to explicit origins once the
+# preflight is confirmed green.
+# NOTE: allow_credentials MUST be False when allow_origins=["*"] — the CORS
+# spec forbids credentials with a wildcard origin and browsers will reject it.
+# ---------------------------------------------------------------------------
+def _parse_cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", "")
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    # Fall back to the value loaded by settings (may be FallbackSettings)
+    try:
+        return settings.cors_origins_list
+    except Exception:
+        return ["http://localhost:3000"]
+
+_cors_origins = _parse_cors_origins()
+logger.info(f"CORS origins loaded: {_cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_origins=["*"],        # TEMPORARY — locked to explicit origins once confirmed
+    allow_credentials=False,    # Must be False when allow_origins=["*"]
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
