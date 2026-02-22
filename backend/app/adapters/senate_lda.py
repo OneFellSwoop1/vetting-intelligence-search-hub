@@ -48,9 +48,10 @@ async def search(query: str, year: int = None) -> List[Dict[str, Any]]:
         if year:
             years_to_search = [year]
         else:
-            # Search last 3 years for speed - captures 80%+ of active/recent lobbying
-            current_year = 2024
-            years_to_search = list(range(current_year, current_year - 3, -1))  # 2024 down to 2022
+            # Search last 3 years dynamically so we always include the current calendar year
+            from datetime import datetime
+            current_year = datetime.now().year
+            years_to_search = list(range(current_year, current_year - 3, -1))
         
         async with httpx.AsyncClient(timeout=8.0) as client:  # ⚡ Reduced from 30s to 8s
             for search_year in years_to_search:
