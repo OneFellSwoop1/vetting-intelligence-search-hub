@@ -500,7 +500,7 @@ export default function VettingIntelligenceHub() {
           </h2>
           {query && (
             <div className="text-sm text-gray-300 backdrop-blur-sm bg-white/10 px-4 py-2 rounded-full border border-white/20">
-              Multi-jurisdictional search across {Object.keys(totalHits).length} data sources
+              Multi-jurisdictional search across {Object.keys(totalHits).filter(s => totalHits[s] > 0).length} data sources ({Object.values(totalHits).reduce((a, b) => a + b, 0)} results)
             </div>
           )}
         </motion.div>

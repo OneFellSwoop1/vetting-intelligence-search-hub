@@ -271,8 +271,10 @@ async def search(
     
     logger.info(f"Starting search for query: '{request.query}', year: {request.year}, jurisdiction: {request.jurisdiction}")
     
-    # Check cache first
-    cached_results = cache_service.get_cached_results(request.query, request.year, request.jurisdiction)
+    # Only use cache for full searches (no source/jurisdiction filter).
+    # A cached entry from a filtered search could be incomplete for a full search.
+    is_full_search = not request.sources and not request.jurisdiction
+    cached_results = cache_service.get_cached_results(request.query, request.year, None) if is_full_search else None
     if cached_results:
         logger.info(f"Returning cached results for query: '{request.query}'")
         
@@ -422,8 +424,11 @@ async def search(
         logger.error(f"❌ Failed to save search results to database: {e}")
         # Continue anyway - don't fail the search because of database issues
     
-    # Cache the results
-    cache_service.cache_results(request.query, total_hits, results, request.year, request.jurisdiction)
+    # Only cache full all-source results — never cache partial source-filtered responses.
+    # Caching a filtered result would corrupt the cached entry for subsequent full searches.
+    is_full_search = not request.sources and not request.jurisdiction
+    if is_full_search:
+        cache_service.cache_results(request.query, total_hits, results, request.year, None)
     
     # Return standardized response with analytics
     return create_search_response(
