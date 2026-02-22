@@ -36,8 +36,6 @@ jobs:
       run: |
         cd backend
         pip install -r requirements.txt
-        # aiohttp is used by adapters (nys_ethics, etc.) but not yet in requirements.txt
-        pip install aiohttp
 
     - name: Create minimal environment.env for Pydantic
       run: |

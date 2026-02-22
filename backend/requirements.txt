@@ -1,91 +1,107 @@
-# FastAPI web framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# ==============================================================================
+# POISSON AI — Backend Dependencies
+# Reconciled against actual imports in app/ — no phantom packages.
+# Python 3.11 / 3.12 / 3.13 compatible.
+# ==============================================================================
 
-# HTTP client for API calls
-httpx==0.25.2
+# ------------------------------------------------------------------------------
+# Web framework
+# ------------------------------------------------------------------------------
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+gunicorn>=21.0.0          # production server (Render: gunicorn -k uvicorn.workers.UvicornWorker)
+starlette>=0.40.0,<1.0.0  # explicit pin to match fastapi>=0.115 requirements
+python-multipart>=0.0.9   # form/file upload parsing
 
-# Data processing and validation
+# ------------------------------------------------------------------------------
+# HTTP clients
+# aiohttp: used by app/adapters/nyc_lobbyist.py and app/adapters/nys_ethics.py
+# httpx:   used by app/adapters/senate_lda.py, fec.py, checkbook.py
+# ------------------------------------------------------------------------------
+aiohttp>=3.9.0,<4.0.0
+httpx>=0.27.0,<1.0.0
+
+# ------------------------------------------------------------------------------
+# Data validation & settings
+# ------------------------------------------------------------------------------
 pydantic>=2.7.0,<3.0.0
-python-multipart==0.0.6
-
-# XML processing for Checkbook NYC API
-xmltodict==0.13.0
-
-# Template engine for XML generation
-jinja2==3.1.4
-
-# Caching with Redis
-redis==5.0.1
-
-# Async support
-asyncio-mqtt==0.13.0
-
-# Date and time utilities
-python-dateutil==2.8.2
-
-# Environment variables
-python-dotenv==1.0.0
-
-# Logging and monitoring
-structlog==23.2.0
-
-# CORS middleware
-starlette==0.27.0
-
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-mock==3.12.0
-pytest-cov==4.1.0
 pydantic-settings>=2.1.0,<3.0.0
 
-# Data analysis (optional, for correlation features)
-pandas>=2.0.0
-numpy>=1.24.0
+# ------------------------------------------------------------------------------
+# Caching
+# ------------------------------------------------------------------------------
+redis>=5.0.0,<7.0.0
 
-# Web scraping utilities
-beautifulsoup4==4.12.2
-lxml>=4.9.0
+# ------------------------------------------------------------------------------
+# Database
+# ------------------------------------------------------------------------------
+sqlalchemy>=2.0.30,<3.0.0
+alembic>=1.13.0,<2.0.0
+asyncpg>=0.29.0           # async PostgreSQL driver (production)
+psycopg2-binary>=2.9.9    # sync PostgreSQL driver (Alembic migrations)
+aiosqlite>=0.20.0         # async SQLite driver (local dev fallback)
+greenlet>=3.0.0           # required by SQLAlchemy async engine
 
-# Rate limiting and request management
-aiofiles==23.2.1
-tenacity==8.2.3
+# ------------------------------------------------------------------------------
+# Authentication
+# ------------------------------------------------------------------------------
+pyjwt>=2.8.0,<3.0.0
+passlib[bcrypt]>=1.7.4,<2.0.0
+email-validator>=2.0.0    # pydantic EmailStr support
+cryptography>=41.0.0      # passlib bcrypt backend
 
-# Enhanced analysis dependencies
-fuzzywuzzy==0.18.0
-# Removed python-levenshtein (conflicts with rapidfuzz, which provides similar functionality)
-# python-levenshtein==0.25.1
-openpyxl==3.1.3
-matplotlib>=3.7.0
-seaborn>=0.12.0
-scikit-learn>=1.3.0
+# ------------------------------------------------------------------------------
+# Data processing (used by correlation and analytics features)
+# ------------------------------------------------------------------------------
+pandas>=2.0.0,<3.0.0
+numpy>=1.24.0,<3.0.0
+scikit-learn>=1.3.0,<2.0.0
+openpyxl>=3.1.0           # pandas ExcelWriter engine
 
-# Enhanced search capabilities
-rapidfuzz>=3.0.0  # Provides Levenshtein distance functionality
-spacy>=3.7.0
-dateparser==1.2.0
-pyyaml==6.0.1
+# ------------------------------------------------------------------------------
+# Text processing & matching
+# rapidfuzz: Levenshtein distance (replaces python-levenshtein, no conflicts)
+# fuzzywuzzy: used in company_normalizer.py
+# dateparser: flexible date string parsing in adapters
+# pyyaml: configuration parsing
+# ------------------------------------------------------------------------------
+rapidfuzz>=3.0.0,<4.0.0
+fuzzywuzzy>=0.18.0
+dateparser>=1.2.0,<2.0.0
+pyyaml>=6.0.0,<7.0.0
 
-# Database dependencies
-sqlalchemy>=2.0.30
-asyncpg>=0.29.0
-alembic>=1.13.1
-psycopg2-binary>=2.9.9
-aiosqlite>=0.20.0
-greenlet>=3.0.0
+# ------------------------------------------------------------------------------
+# XML / templating
+# jinja2:   XML generation for Checkbook NYC API requests
+# xmltodict: XML response parsing
+# ------------------------------------------------------------------------------
+jinja2>=3.1.0,<4.0.0
+xmltodict>=0.13.0,<1.0.0
 
-# Authentication dependencies
-pyjwt==2.8.0
-passlib[bcrypt]==1.7.4
-email-validator==2.1.1
+# ------------------------------------------------------------------------------
+# Utilities
+# aiofiles: async file I/O (required by Starlette StaticFiles)
+# tenacity: retry logic
+# python-dotenv: .env file loading
+# python-dateutil: date arithmetic
+# ------------------------------------------------------------------------------
+aiofiles>=23.0.0
+tenacity>=8.0.0,<10.0.0
+python-dotenv>=1.0.0,<2.0.0
+python-dateutil>=2.8.0,<3.0.0
 
-# Missing dependencies for enhanced features
-mammoth==1.8.0
-# Note: TensorFlow is large and optional - uncomment if needed
-# tensorflow>=2.15.0
-# spacy model download: python -m spacy download en_core_web_sm
+# ------------------------------------------------------------------------------
+# NLP — optional, wrapped in try/except in enhanced_search_processor.py
+# App functions normally if spacy is absent; comment out to speed up Render build.
+# If enabled, also run: python -m spacy download en_core_web_sm
+# ------------------------------------------------------------------------------
+# spacy>=3.7.0,<4.0.0
 
-# Additional missing dependencies
-python-magic==0.4.27
-cryptography>=41.0.0 
+# ------------------------------------------------------------------------------
+# Testing (not installed in production — Render ignores these if you use
+# a separate test requirements file, but they are lightweight enough to keep here)
+# ------------------------------------------------------------------------------
+pytest>=7.4.0,<9.0.0
+pytest-asyncio>=0.21.0,<2.0.0
+pytest-mock>=3.12.0,<4.0.0
+pytest-cov>=4.1.0,<6.0.0
