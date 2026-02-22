@@ -196,7 +196,7 @@ export default function VettingIntelligenceHub() {
     setError('');
     
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/search', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}/api/v1/search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

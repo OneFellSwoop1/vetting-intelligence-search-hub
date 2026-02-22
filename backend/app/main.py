@@ -71,28 +71,14 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# CORS — origins read from CORS_ORIGINS env var (comma-separated).
-# Fallback list covers production domains + local dev.
-# No wildcard. allow_credentials=False (no cookie-based auth in use).
+# CORS — origins come from settings.cors_origins_list which reads the
+# CORS_ORIGINS env var (comma-separated string, coerced to list[str] by
+# the Pydantic validator).  No wildcard.
+# allow_credentials=False: we use Bearer tokens (Authorization header),
+# not cookies, so credentials mode is not required.
 # ---------------------------------------------------------------------------
-_CORS_FALLBACK = [
-    "https://poisson-ai.com",
-    "https://www.poisson-ai.com",
-    "https://vetting-intelligence-search-hub.vercel.app",
-    "http://localhost:3000",
-]
-
-def _parse_cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ORIGINS", "")
-    if raw:
-        parsed = [o.strip() for o in raw.split(",") if o.strip()]
-        if parsed:
-            logger.info(f"CORS origins from env: {parsed}")
-            return parsed
-    logger.info(f"CORS origins from fallback: {_CORS_FALLBACK}")
-    return _CORS_FALLBACK
-
-_cors_origins = _parse_cors_origins()
+_cors_origins = settings.cors_origins_list
+logger.info(f"CORS origins: {_cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,

@@ -91,7 +91,7 @@ jobs:
         cat > .env.local << 'EOF'
         NODE_ENV=development
         NEXT_PUBLIC_SITE_URL=https://poisson-ai.com
-        NEXT_PUBLIC_API_URL=http://localhost:8000
+        NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_dummy_clerk_key_for_ci_only
         EOF
         echo "✅ Created .env.local file"
@@ -141,6 +141,6 @@ jobs:
         npm run build
       env:
         NEXT_PUBLIC_SITE_URL: 'https://poisson-ai.com'
-        NEXT_PUBLIC_API_URL: 'http://localhost:8000'
+        NEXT_PUBLIC_API_BASE_URL: 'http://localhost:8000'
         NEXT_TELEMETRY_DISABLED: '1'
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_dummy_clerk_key_for_ci_only'

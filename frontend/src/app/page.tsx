@@ -701,7 +701,7 @@ export default function LandingPage() {
                 <ul className="space-y-2 text-sm text-gray-400">
                   <li><Link href="/app" className="hover:text-white transition-colors">Search</Link></li>
                   <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-                  <li><a href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">API Documentation</a></li>
+                  <li><a href="https://api.poisson-ai.com/docs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">API Documentation</a></li>
                 </ul>
               </div>
               

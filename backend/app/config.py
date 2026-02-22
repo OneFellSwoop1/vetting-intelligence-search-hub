@@ -71,9 +71,9 @@ class Settings(BaseSettings):
     NYC_LOBBYIST_RATE_LIMIT: float = Field(1.0, env="NYC_LOBBYIST_RATE_LIMIT")
     FEC_RATE_LIMIT: float = Field(0.28, env="FEC_RATE_LIMIT")  # 1000/hour = ~0.28/second
     
-    # CORS Configuration
-    # Stored as a raw comma-separated string; cors_origins_list property converts to list.
-    # Do NOT use a @validator that returns a list — Pydantic v2 rejects list for str field.
+    # CORS Configuration — kept as str because pydantic-settings v2 JSON-decodes List[str]
+    # fields, which fails for comma-separated env var values.
+    # Use cors_origins_list property to get the parsed list.
     CORS_ORIGINS: str = Field(
         "http://localhost:3000,http://localhost:8000,http://127.0.0.1:8000",
         env="CORS_ORIGINS"
@@ -92,11 +92,13 @@ class Settings(BaseSettings):
     
     @validator("CORS_ORIGINS", pre=True)
     def parse_cors_origins(cls, v):
-        """Keep CORS_ORIGINS as a plain string — the cors_origins_list property parses it.
-        If somehow a list arrives (e.g. from test injection), join it back to a string."""
+        """Keep CORS_ORIGINS as a str — pydantic-settings v2 JSON-decodes List[str]
+        fields which breaks comma-separated env vars.  Always return str here;
+        cors_origins_list property handles the split."""
         if isinstance(v, list):
-            return ",".join(str(o) for o in v)
-        return str(v) if v else ""
+            # If somehow a list arrives (e.g. test injection), join it back to str
+            return ",".join(str(o).strip() for o in v if str(o).strip())
+        return str(v).strip() if v else "http://localhost:3000"
     
     @validator("JWT_SECRET_KEY")
     def validate_jwt_secret(cls, v):
@@ -153,12 +155,11 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Get CORS origins as a list."""
+        """Parse the comma-separated CORS_ORIGINS string into a list.
+        This is the single point of truth for the parsed origins list."""
         if isinstance(self.CORS_ORIGINS, list):
             return self.CORS_ORIGINS
-        if isinstance(self.CORS_ORIGINS, str):
-            return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
-        return ["http://localhost:3000"]
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
     
     @property
     def database_url_sync(self) -> str:

@@ -382,7 +382,7 @@ export default function ContactPage() {
                   <Link href="/app" className="block text-blue-300 hover:text-blue-100 transition-colors">
                     → Try Demo
                   </Link>
-                  <a href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener noreferrer" className="block text-blue-300 hover:text-blue-100 transition-colors">
+                  <a href="https://api.poisson-ai.com/docs" target="_blank" rel="noopener noreferrer" className="block text-blue-300 hover:text-blue-100 transition-colors">
                     → API Documentation
                   </a>
                   <Link href="/privacy" className="block text-blue-300 hover:text-blue-100 transition-colors">

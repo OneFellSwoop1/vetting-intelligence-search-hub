@@ -187,7 +187,7 @@ export default function NotFound() {
               </Link>
 
               {/* API Docs Button */}
-              <a href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener noreferrer">
+              <a href="https://api.poisson-ai.com/docs" target="_blank" rel="noopener noreferrer">
                 <motion.div
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
