@@ -71,31 +71,33 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# CORS — parse origins directly from the environment variable so this works
-# even if the Pydantic Settings object failed to load (FallbackSettings path).
-# allow_origins=["*"] is intentionally set while we confirm the Vercel→Render
-# connection works end-to-end.  We will restrict to explicit origins once the
-# preflight is confirmed green.
-# NOTE: allow_credentials MUST be False when allow_origins=["*"] — the CORS
-# spec forbids credentials with a wildcard origin and browsers will reject it.
+# CORS — origins read from CORS_ORIGINS env var (comma-separated).
+# Fallback list covers production domains + local dev.
+# No wildcard. allow_credentials=False (no cookie-based auth in use).
 # ---------------------------------------------------------------------------
+_CORS_FALLBACK = [
+    "https://poisson-ai.com",
+    "https://www.poisson-ai.com",
+    "https://vetting-intelligence-search-hub.vercel.app",
+    "http://localhost:3000",
+]
+
 def _parse_cors_origins() -> list[str]:
     raw = os.getenv("CORS_ORIGINS", "")
     if raw:
-        return [o.strip() for o in raw.split(",") if o.strip()]
-    # Fall back to the value loaded by settings (may be FallbackSettings)
-    try:
-        return settings.cors_origins_list
-    except Exception:
-        return ["http://localhost:3000"]
+        parsed = [o.strip() for o in raw.split(",") if o.strip()]
+        if parsed:
+            logger.info(f"CORS origins from env: {parsed}")
+            return parsed
+    logger.info(f"CORS origins from fallback: {_CORS_FALLBACK}")
+    return _CORS_FALLBACK
 
 _cors_origins = _parse_cors_origins()
-logger.info(f"CORS origins loaded: {_cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # TEMPORARY — locked to explicit origins once confirmed
-    allow_credentials=False,    # Must be False when allow_origins=["*"]
+    allow_origins=_cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
