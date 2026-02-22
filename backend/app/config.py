@@ -38,8 +38,8 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = Field(10, env="DATABASE_POOL_SIZE")
     DATABASE_MAX_OVERFLOW: int = Field(20, env="DATABASE_MAX_OVERFLOW")
     
-    # Redis Configuration
-    REDIS_URL: str = Field("redis://localhost:6379/0", env="REDIS_URL")
+    # Redis Configuration — leave blank to disable caching (never default to localhost in prod)
+    REDIS_URL: str = Field("", env="REDIS_URL")
     CACHE_TTL_SECONDS: int = Field(3600, env="CACHE_TTL_SECONDS")
     
     # Rate Limiting Configuration

@@ -146,16 +146,12 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"⚠️ Database setup failed: {e}")
     
-    # Test Redis connection
-    try:
-        from .cache import cache_service
-        if cache_service.redis_client:
-            cache_service.redis_client.ping()
-            logger.info("✅ Redis cache connected successfully")
-        else:
-            logger.warning("⚠️ Redis cache not available - caching disabled")
-    except Exception as e:
-        logger.warning(f"⚠️ Redis cache connection failed: {e}")
+    # Report Redis status (CacheService.__init__ already handled the actual connection attempt)
+    from .cache import cache_service
+    if cache_service.is_available():
+        logger.info("✅ Redis cache connected successfully")
+    else:
+        logger.warning("⚠️ Redis cache not available — running without caching (searches will still work)")
     
     # Initialize correlation analyzer if available
     try:

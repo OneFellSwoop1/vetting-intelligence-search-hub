@@ -19,17 +19,27 @@ class CacheService:
         self.redis_client = None
         self.enabled = False
         
-        # Try to connect to Redis
-        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+        # Only attempt connection if REDIS_URL is explicitly provided.
+        # Never default to localhost — that address doesn't exist in production.
+        redis_url = os.getenv('REDIS_URL', '').strip()
+        if not redis_url:
+            logger.info("REDIS_URL not set — caching disabled (running without Redis)")
+            return
         
         try:
-            self.redis_client = redis.from_url(redis_url, decode_responses=True)
-            # Test connection
+            # socket_connect_timeout + socket_timeout: fail fast (3 s) instead of hanging
+            self.redis_client = redis.from_url(
+                redis_url,
+                decode_responses=True,
+                socket_connect_timeout=3,
+                socket_timeout=3,
+            )
             self.redis_client.ping()
             self.enabled = True
             logger.info(f"Redis cache connected: {redis_url}")
-        except (ConnectionError, RedisError) as e:
-            logger.warning(f"Redis cache not available: {e}")
+        except (ConnectionError, RedisError, Exception) as e:
+            logger.warning(f"Redis cache not available ({redis_url}): {e}")
+            self.redis_client = None  # ensure it's None so callers can safely check
             self.enabled = False
     
     @handle_sync_errors(default_return=None)
